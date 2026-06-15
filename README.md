@@ -1,39 +1,58 @@
-# MarkUp AI
+# Naviio
 
-Real-Time Financial Intelligence for SMBs & Startups — built by Eric Franco.
+Financial intelligence for SMBs and fractional CFOs. Naviio connects your bank
+(Plaid), payments (Stripe), and accounting (QuickBooks / Xero) into live cash &
+accrual P&L, cash flow, MRR, forecasting, a financial-model studio, and **Navi** —
+an AI finance co-pilot. Built by Eric Franco.
+
+## Features
+
+- **Reporting** — cash-basis and accrual/GAAP P&L, cash flow, burn & runway, and
+  a 12-month trend, computed by one shared metric engine so every view agrees.
+- **Revenue** — MRR/ARR movement, churn, NRR, LTV, and cohort analysis from Stripe.
+- **Expenses** — transactions auto-categorized by Navi, with one-click "fix the
+  AI" reclassification and COGS / OpEx tagging that flows into the gross-margin P&L.
+- **Financial model** — analysis, management reporting, cash-flow forecasting,
+  consolidated reporting, and an AI commentary writer, with live-formula Excel and
+  PDF export.
+- **Navi co-pilot** — ask questions about your books in natural language.
+- **Credits** — usage-based billing (metered Navi messages, on-demand refreshes,
+  AI commentary) with a $10 reloadable pack via Stripe Checkout.
+- **Multi-entity & sharing** — separate books per client entity, a read-only
+  client portal, and white-label branding (CFO plan).
+- **Security** — custom JWT sessions plus TOTP MFA, passkeys (WebAuthn), and SSO
+  (Google / WorkOS); per-org access control and app-layer token encryption.
 
 ## Stack
 
-- **Framework**: Next.js 16 (App Router) + TypeScript
-- **Database**: PostgreSQL via Prisma 7 + `@prisma/adapter-pg`
-- **Auth**: Custom JWT (HTTP-only cookies) + bcrypt
-- **Charts**: Recharts
-- **Integrations**: Plaid, Stripe, QuickBooks, Xero, Gusto, ADP, Shopify
+- **Framework**: Next.js 16 (App Router, Turbopack) + React 19 + TypeScript
+- **Database**: PostgreSQL via Prisma 7 + `@prisma/adapter-pg` (Neon in production)
+- **Auth**: Custom JWT (HTTP-only cookies) + bcrypt, TOTP MFA, WebAuthn passkeys, SSO
+- **Charts**: Recharts (lazy-loaded via `next/dynamic`)
+- **Integrations**: Plaid, Stripe, QuickBooks, Xero, plus Meta / Google Ads
 - **Styling**: Tailwind CSS v4
 
 ## Quick Start
 
-### 1. Environment Setup
+### 1. Environment
 
 ```bash
 cp .env.example .env
-# Fill in your secrets (see below)
+# Fill in your secrets (see the table below)
 ```
 
 ### 2. Database
 
 ```bash
 # Start Postgres (Docker)
-docker run -d --name markupai-db \
-  -e POSTGRES_DB=markupai \
-  -e POSTGRES_USER=markupai \
-  -e POSTGRES_PASSWORD=markupai \
+docker run -d --name naviio-db \
+  -e POSTGRES_DB=naviio \
+  -e POSTGRES_USER=naviio \
+  -e POSTGRES_PASSWORD=naviio \
   -p 5432:5432 postgres:16
 
-# Set your DATABASE_URL
-export DATABASE_URL="postgresql://markupai:markupai@localhost:5432/markupai"
+export DATABASE_URL="postgresql://naviio:naviio@localhost:5432/naviio"
 
-# Run migrations
 npx prisma migrate dev --name init
 ```
 
@@ -44,9 +63,11 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/login`.
+Open [http://localhost:3000](http://localhost:3000) — you'll be redirected to `/login`.
 
-**Demo mode**: The app runs fully with realistic mock data — no real API keys needed. Click "Sign in" on the login page with the pre-filled demo credentials to explore all 8 dashboard views.
+Until you connect a data source, the dashboards show empty states (there are no
+mock financials). A development-only demo login is available for local exploration
+and is disabled in production.
 
 ## Environment Variables
 
@@ -54,70 +75,79 @@ Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/l
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `JWT_SECRET` | Yes | Secret for signing session tokens |
-| `PLAID_CLIENT_ID` | No | Plaid dashboard client ID |
-| `PLAID_SECRET` | No | Plaid sandbox/production secret |
-| `PLAID_ENV` | No | `sandbox` \| `development` \| `production` |
-| `STRIPE_SECRET_KEY` | No | Stripe secret key (`sk_test_...`) |
-| `QB_CLIENT_ID` | No | QuickBooks app client ID |
-| `QB_CLIENT_SECRET` | No | QuickBooks app client secret |
+| `TOKEN_ENCRYPTION_KEY` | Yes | AES-256-GCM key for at-rest OAuth-token encryption |
+| `PLAID_CLIENT_ID` / `PLAID_SECRET` / `PLAID_ENV` | No | Plaid (banking) |
+| `STRIPE_SECRET_KEY` | No | Stripe — revenue metrics **and** credit checkout |
+| `STRIPE_WEBHOOK_SECRET` | No | Verifies Stripe webhooks (revenue + credits) |
+| `QB_CLIENT_ID` / `QB_CLIENT_SECRET` / `QB_REDIRECT_URI` | No | QuickBooks OAuth |
+| `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` | No | Xero OAuth |
+| `ANTHROPIC_API_KEY` | No | Powers the Navi co-pilot and AI commentary |
 
-When API keys are absent, all endpoints fall back to demo data automatically.
+When a provider's keys are absent, the related views show empty states rather than
+fabricated numbers. See `.env.example` for the full list.
 
 ## Dashboard Views
 
 | Route | Description |
 |---|---|
-| `/dashboard` | Overview — cash, MRR, ARR, runway, P&L snapshot |
-| `/pl` | Real-time P&L statement with 12-month trend |
+| `/dashboard` | Overview — cash, MRR, ARR, runway, P&L snapshot, Navi score |
+| `/pl` | Cash & accrual P&L with 12-month trend and figure-level provenance |
 | `/cash-flow` | Cash position, burn rate, runway scenarios |
-| `/revenue` | MRR, ARR, churn, LTV, cohort analysis |
-| `/expenses` | AI-categorized transactions, expense breakdown |
+| `/revenue` | MRR/ARR movement, churn, NRR, LTV, cohort analysis |
+| `/forecast` | Driver-based revenue & cash forecast with scenarios |
+| `/model` | Financial-model studio (analysis, reporting, forecasting, commentary) + exports |
+| `/expenses` | AI-categorized transactions, COGS / OpEx tagging, expense breakdown |
 | `/kpis` | CAC, LTV, gross margin, EBITDA, magic number |
-| `/integrations` | Connect Plaid, QuickBooks, Stripe, Xero, Gusto |
+| `/cpa` | CPA / tax workspace |
+| `/integrations` | Connect Plaid, Stripe, QuickBooks, Xero |
+| `/settings` | Organization, Billing & Credits, Sharing, Security, Account |
 | `/alerts` | Smart alerts for anomalies, milestones, churn risk |
 
 ## API Routes & Architecture
 
-The full, current API surface (~60 routes: auth/MFA/passkeys, 8 provider
-integrations, webhooks, analytics, forecasting, credits, cron) plus system
-architecture, database schema conventions, and the scaling plan live in
-**[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)**.
+The full, current API surface (auth/MFA/passkeys/SSO, provider integrations,
+webhooks, analytics, forecasting, credits, cron) plus system architecture,
+database schema conventions, and the scaling plan live in
+**[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)**. Design decisions are recorded
+in **[docs/decisions/](./docs/decisions/)**.
 
 ## Project Structure
 
 ```
 src/
 ├── app/
-│   ├── (auth)/          # Login + Register pages
-│   ├── (dashboard)/     # All 8 dashboard views
+│   ├── (auth)/          # Login, register, MFA challenge
+│   ├── (dashboard)/     # Dashboard views (overview, pl, cash-flow, …)
 │   └── api/             # REST API routes
 ├── components/
-│   ├── layout/          # Sidebar, Header
-│   ├── ui/              # MetricCard, Card, Badge
-│   ├── charts/          # PLChart, CashFlowChart, RevenueChart, etc.
-│   ├── integrations/    # IntegrationCard
-│   └── alerts/          # AlertFeed
+│   ├── layout/          # Sidebar, Header, OrgSwitcher
+│   ├── ui/              # MetricCard, Card, Badge, …
+│   ├── charts/          # Lazy-loaded recharts components + ChartSkeleton
+│   ├── model/           # Financial-model tabs and chart
+│   ├── settings/        # Team, Portal, Branding, Credits sections
+│   └── provenance/      # Figure → transactions drill-down drawer
 ├── lib/
+│   ├── api/             # withAuth / withOrg / withOwner route wrappers
+│   ├── metrics/         # Ledger classifier + income-statement / cash-flow engine
+│   ├── integrations/    # Plaid, Stripe, QuickBooks, Xero
+│   ├── model/           # Gross-margin model, projection, Excel export
+│   ├── credits/         # Credit account, rates, Stripe Checkout
+│   ├── forecasting/     # MRR/cohort forecast engine
 │   ├── auth.ts          # JWT auth + session cookies
-│   ├── plaid.ts         # Plaid SDK wrapper
-│   ├── stripe.ts        # Stripe SDK wrapper
-│   ├── quickbooks.ts    # QuickBooks OAuth
-│   ├── mock-data.ts     # Realistic demo financial data
+│   ├── org.ts           # Roles, seats, plan helpers
 │   └── prisma.ts        # Prisma client (pg adapter)
 └── types/               # Shared TypeScript types
 ```
 
-## Connecting Real Integrations
+## Connecting Integrations
 
-### Plaid (Banking)
-Add `PLAID_CLIENT_ID` and `PLAID_SECRET` to `.env`. Go to `/integrations` and click "Connect" on the Plaid card — it opens the Plaid Link modal.
-
-### Stripe (Revenue)
-Add `STRIPE_SECRET_KEY`. The `/api/stripe/metrics` endpoint automatically pulls live MRR, ARR, and subscription data.
-
-### QuickBooks
-Add `QB_CLIENT_ID`, `QB_CLIENT_SECRET`, and `QB_REDIRECT_URI`. Click "Connect" on the QuickBooks card to trigger the OAuth flow.
+- **Plaid (banking)** — add `PLAID_CLIENT_ID` / `PLAID_SECRET`, then connect from
+  `/integrations` (opens Plaid Link).
+- **Stripe (revenue + credits)** — add `STRIPE_SECRET_KEY`; revenue metrics pull
+  automatically, and credit reloads use Stripe Checkout.
+- **QuickBooks / Xero (accounting)** — add the OAuth client credentials and
+  connect from `/integrations` to enable accrual/GAAP reporting.
 
 ---
 
-*Built by Eric Franco — FP&A professional and former CFO. May 2026.*
+*Built by Eric Franco — FP&A professional and former CFO.*
