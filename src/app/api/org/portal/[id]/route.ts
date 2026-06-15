@@ -5,15 +5,11 @@
  *            the share's settings and view history.
  *   DELETE — revoke. Instant: the next view re-checks revokedAt server-side. */
 import { randomBytes } from 'crypto'
-import { withOrg } from '@/lib/api/with-org'
+import { withOwner } from '@/lib/api/with-org'
 import { prisma } from '@/lib/prisma'
-import { getOrgRole } from '@/lib/org'
 import { hashPortalToken } from '@/lib/portal'
 
-export const POST = withOrg(async (request, { user, orgId }) => {
-  if ((await getOrgRole(orgId, user.id)) !== 'OWNER') {
-    return Response.json({ error: 'Only the owner can regenerate portal links' }, { status: 403 })
-  }
+export const POST = withOwner(async (request, { orgId }) => {
   const id = new URL(request.url).pathname.split('/').pop()
   if (!id) return Response.json({ error: 'Share id required' }, { status: 400 })
 
@@ -31,10 +27,7 @@ export const POST = withOrg(async (request, { user, orgId }) => {
   return Response.json({ ok: true, label: share?.label ?? '', portalUrl })
 })
 
-export const DELETE = withOrg(async (request, { user, orgId }) => {
-  if ((await getOrgRole(orgId, user.id)) !== 'OWNER') {
-    return Response.json({ error: 'Only the owner can revoke portal links' }, { status: 403 })
-  }
+export const DELETE = withOwner(async (request, { orgId }) => {
   const id = new URL(request.url).pathname.split('/').pop()
   if (!id) return Response.json({ error: 'Share id required' }, { status: 400 })
 

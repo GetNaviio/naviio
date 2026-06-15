@@ -5,7 +5,10 @@ import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import NaviBadge from '@/components/ui/NaviBadge'
 import MetricCard from '@/components/ui/MetricCard'
-import ForecastChart from '@/components/forecast/ForecastChart'
+import dynamic from 'next/dynamic'
+import ChartSkeleton from '@/components/charts/ChartSkeleton'
+// Lazy-loaded — pulls in recharts; kept out of the initial bundle.
+const ForecastChart = dynamic(() => import('@/components/forecast/ForecastChart'), { ssr: false, loading: () => <ChartSkeleton /> })
 import ConnectPrompt from '@/components/ConnectPrompt'
 import { generateForecast, BASE_CHURN_RATE } from '@/lib/forecasting/engine'
 import type { CohortSeries } from '@/lib/forecasting/cohorts'

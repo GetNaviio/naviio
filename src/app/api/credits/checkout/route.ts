@@ -1,19 +1,11 @@
-import { requireAuth, getDefaultOrgId } from '@/lib/auth'
+import { withOrg } from '@/lib/api/with-org'
 import { createCreditCheckout } from '@/lib/credits/checkout'
 
 /**
  * Start a credit-reload purchase. Returns a Stripe Checkout URL for the client
  * to redirect to. Defaults to the single 'reload' pack.
  */
-export async function POST(request: Request) {
-  let orgId: string
-  try {
-    const user = await requireAuth()
-    orgId = await getDefaultOrgId(user.id)
-  } catch {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export const POST = withOrg(async (request, { orgId }) => {
   if (!process.env.STRIPE_SECRET_KEY) {
     return Response.json({ error: 'Billing is not configured (no STRIPE_SECRET_KEY).' }, { status: 503 })
   }
@@ -32,4 +24,4 @@ export async function POST(request: Request) {
     console.error('credits checkout failed:', err)
     return Response.json({ error: err instanceof Error ? err.message : 'checkout_failed' }, { status: 500 })
   }
-}
+})

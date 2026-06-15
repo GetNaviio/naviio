@@ -8,7 +8,10 @@ import MetricCard from '@/components/ui/MetricCard'
 import ConnectPrompt from '@/components/ConnectPrompt'
 import { formatCurrency } from '@/lib/utils'
 import { projectModel, projectionTotals } from '@/lib/model/project'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import dynamic from 'next/dynamic'
+import ChartSkeleton from '@/components/charts/ChartSkeleton'
+// Lazy-loaded — pulls in recharts; kept out of the page's initial bundle.
+const ModelProjectionChart = dynamic(() => import('@/components/model/ModelProjectionChart'), { ssr: false, loading: () => <ChartSkeleton height={260} /> })
 import { Download, Printer, Sparkles, PieChart, Target, Percent, Gauge } from 'lucide-react'
 import NaviBadge from '@/components/ui/NaviBadge'
 import WorkforceTab from '@/components/model/WorkforceTab'
@@ -228,16 +231,7 @@ export default function ModelPage() {
                     </div>
                   </Card>
                   <Card title="Projected revenue & operating income" subtitle={`${months}-month projection`}>
-                    <ResponsiveContainer width="100%" height={260}>
-                      <LineChart data={chartData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-surface-border)" />
-                        <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
-                        <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} tickFormatter={(v) => formatCurrency(v as number, true)} width={64} />
-                        <Tooltip formatter={(v) => formatCurrency(v as number, true)} contentStyle={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)', borderRadius: 8, fontSize: 12 }} />
-                        <Line type="monotone" dataKey="Revenue" stroke="#3B82F6" strokeWidth={2} dot={false} />
-                        <Line type="monotone" dataKey="Operating Income" stroke="#10B981" strokeWidth={2} dot={false} />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <ModelProjectionChart data={chartData} />
                   </Card>
                   <Card title="Monthly projection" subtitle="Revenue → COGS → Gross Profit → OpEx → Operating Income" padding={false}>
                     <div className="overflow-x-auto">

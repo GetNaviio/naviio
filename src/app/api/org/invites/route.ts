@@ -10,21 +10,18 @@
  */
 import { z } from 'zod'
 import { randomBytes } from 'crypto'
-import { withOrg } from '@/lib/api/with-org'
+import { withOwner } from '@/lib/api/with-org'
 import { prisma } from '@/lib/prisma'
 import { rateLimit } from '@/lib/rate-limit'
-import { getOrgRole, seatUsage, hashInviteToken, INVITE_TTL_DAYS } from '@/lib/org'
+import { seatUsage, hashInviteToken, INVITE_TTL_DAYS, planLabel } from '@/lib/org'
 
 const InviteSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
 })
 
-export const POST = withOrg(async (request, { user, orgId }) => {
+export const POST = withOwner(async (request, { user, orgId }) => {
   const limited = await rateLimit(request, 'invite', { limit: 30, windowSeconds: 3600 })
   if (limited) return limited
-
-  const role = await getOrgRole(orgId, user.id)
-  if (role !== 'OWNER') return Response.json({ error: 'Only the owner can invite members' }, { status: 403 })
 
   const body = await request.json().catch(() => null)
   const parsed = InviteSchema.safeParse(body)
@@ -56,7 +53,7 @@ export const POST = withOrg(async (request, { user, orgId }) => {
   if (!existingInvite && seats.used >= seats.limit) {
     return Response.json(
       {
-        error: `Your ${seats.plan === 'CFO' ? 'CFO' : seats.plan.charAt(0) + seats.plan.slice(1).toLowerCase()} plan includes ${seats.limit} seat${seats.limit === 1 ? '' : 's'} — upgrade to invite more teammates`,
+        error: `Your ${planLabel(seats.plan)} plan includes ${seats.limit} seat${seats.limit === 1 ? '' : 's'} — upgrade to invite more teammates`,
         code: 'SEAT_LIMIT',
       },
       { status: 409 },
@@ -79,10 +76,7 @@ export const POST = withOrg(async (request, { user, orgId }) => {
   return Response.json({ ...invite, expiresAt: invite.expiresAt.toISOString(), inviteUrl, orgName: org.name }, { status: 201 })
 })
 
-export const GET = withOrg(async (_request, { user, orgId }) => {
-  const role = await getOrgRole(orgId, user.id)
-  if (role !== 'OWNER') return Response.json({ error: 'Only the owner can view invites' }, { status: 403 })
-
+export const GET = withOwner(async (_request, { orgId }) => {
   const invites = await prisma.invitation.findMany({
     where: { orgId, acceptedAt: null },
     orderBy: { createdAt: 'desc' },

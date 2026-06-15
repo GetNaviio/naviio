@@ -26,6 +26,14 @@ export const SEAT_LIMITS: Record<Plan, number> = {
 
 export const INVITE_TTL_DAYS = 14
 
+/**
+ * Display label for a plan. "CFO" stays an acronym; the rest are title-cased
+ * (STARTER → Starter). Single source of truth so the UI never re-implements it.
+ */
+export function planLabel(plan: Plan | string): string {
+  return plan === 'CFO' ? 'CFO' : plan.charAt(0) + plan.slice(1).toLowerCase()
+}
+
 /** The caller's role in an org, or null if they don't belong to it. */
 export async function getOrgRole(orgId: string, userId: string): Promise<OrgRole | null> {
   const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { userId: true } })

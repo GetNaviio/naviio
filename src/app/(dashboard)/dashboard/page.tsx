@@ -4,8 +4,11 @@ import { useEffect, useState, type ReactNode } from 'react'
 import Header from '@/components/layout/Header'
 import MetricCard from '@/components/ui/MetricCard'
 import Card from '@/components/ui/Card'
-import CashFlowChart from '@/components/charts/CashFlowChart'
-import NaviScore from '@/components/NaviScore'
+import dynamic from 'next/dynamic'
+import ChartSkeleton from '@/components/charts/ChartSkeleton'
+// Lazy-loaded — these pull in recharts; keeping them out of the initial bundle.
+const CashFlowChart = dynamic(() => import('@/components/charts/CashFlowChart'), { ssr: false, loading: () => <ChartSkeleton /> })
+const NaviScore = dynamic(() => import('@/components/NaviScore'), { ssr: false, loading: () => <ChartSkeleton height={320} /> })
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import RefreshNowButton from '@/components/RefreshNowButton'
 import { formatCurrency } from '@/lib/utils'

@@ -17,14 +17,20 @@
  *   export const POST = withAuth(async (request, { user }) => { ... })
  */
 import { requireAuth, getDefaultOrgId } from '@/lib/auth'
+import { getOrgRole } from '@/lib/org'
 
 type AuthedUser = Awaited<ReturnType<typeof requireAuth>>
 
 export type AuthContext = { user: AuthedUser }
 export type OrgContext = { user: AuthedUser; orgId: string }
+export type OwnerContext = { user: AuthedUser; orgId: string; role: 'OWNER' }
 
 function unauthorized(): Response {
   return Response.json({ error: 'Unauthorized' }, { status: 401 })
+}
+
+function forbidden(): Response {
+  return Response.json({ error: 'Only the organization owner can do this' }, { status: 403 })
 }
 
 function isUnauthorized(err: unknown): boolean {
@@ -63,4 +69,18 @@ export function withOrg(
     }
     return handler(request, { user, orgId })
   }
+}
+
+/**
+ * Auth + default-org + OWNER gate — for owner-only org management routes
+ * (portal shares, members, invites). Members and non-members get a 403; only the
+ * org owner reaches the handler. Composes withOrg, so the 401 contract is shared.
+ */
+export function withOwner(
+  handler: (request: Request, ctx: OwnerContext) => Promise<Response>,
+): (request: Request) => Promise<Response> {
+  return withOrg(async (request, { user, orgId }) => {
+    if ((await getOrgRole(orgId, user.id)) !== 'OWNER') return forbidden()
+    return handler(request, { user, orgId, role: 'OWNER' })
+  })
 }

@@ -9,10 +9,9 @@
  */
 import { z } from 'zod'
 import { randomBytes } from 'crypto'
-import { withOrg } from '@/lib/api/with-org'
+import { withOwner } from '@/lib/api/with-org'
 import { prisma } from '@/lib/prisma'
 import { rateLimit } from '@/lib/rate-limit'
-import { getOrgRole } from '@/lib/org'
 import { hashPortalToken, ALL_SCOPES } from '@/lib/portal'
 
 const CreateSchema = z.object({
@@ -21,10 +20,7 @@ const CreateSchema = z.object({
   expiresInDays: z.number().int().min(1).max(365).optional(),
 })
 
-export const GET = withOrg(async (_request, { user, orgId }) => {
-  if ((await getOrgRole(orgId, user.id)) !== 'OWNER') {
-    return Response.json({ error: 'Only the owner can manage portal links' }, { status: 403 })
-  }
+export const GET = withOwner(async (_request, { orgId }) => {
   const shares = await prisma.portalShare.findMany({
     where: { orgId },
     orderBy: { createdAt: 'desc' },
@@ -47,13 +43,9 @@ export const GET = withOrg(async (_request, { user, orgId }) => {
   })
 })
 
-export const POST = withOrg(async (request, { user, orgId }) => {
+export const POST = withOwner(async (request, { user, orgId }) => {
   const limited = await rateLimit(request, 'portal_create', { limit: 20, windowSeconds: 3600 })
   if (limited) return limited
-
-  if ((await getOrgRole(orgId, user.id)) !== 'OWNER') {
-    return Response.json({ error: 'Only the owner can create portal links' }, { status: 403 })
-  }
 
   const parsed = CreateSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return Response.json({ error: 'A label and at least one section are required' }, { status: 400 })

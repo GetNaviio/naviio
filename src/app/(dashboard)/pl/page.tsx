@@ -8,7 +8,10 @@ import ConnectPrompt from '@/components/ConnectPrompt'
 import { SkeletonGrid, ErrorState } from '@/components/ui/PageState'
 import { usePageData, fetchJson } from '@/hooks/usePageData'
 import { usePersistentState } from '@/hooks/usePersistentState'
-import IncomeExpenseChart from '@/components/charts/IncomeExpenseChart'
+import dynamic from 'next/dynamic'
+import ChartSkeleton from '@/components/charts/ChartSkeleton'
+// Lazy-loaded — pulls in recharts; kept out of the initial bundle.
+const IncomeExpenseChart = dynamic(() => import('@/components/charts/IncomeExpenseChart'), { ssr: false, loading: () => <ChartSkeleton /> })
 import FreshnessLine, { type MonthlyMeta } from '@/components/model/FreshnessLine'
 import ProvenanceDrawer, { type ProvenanceQuery } from '@/components/provenance/ProvenanceDrawer'
 import { formatCurrency } from '@/lib/utils'

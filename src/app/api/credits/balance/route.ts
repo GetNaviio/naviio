@@ -1,14 +1,7 @@
-import { requireAuth, getDefaultOrgId } from '@/lib/auth'
+import { withOrg } from '@/lib/api/with-org'
 import { getBalance } from '@/lib/credits/account'
 
 /** Current credit balance for the signed-in org. */
-export async function GET() {
-  let orgId: string
-  try {
-    const user = await requireAuth()
-    orgId = await getDefaultOrgId(user.id)
-  } catch {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+export const GET = withOrg(async (_request, { orgId }) => {
   return Response.json({ balance: await getBalance(orgId) })
-}
+})

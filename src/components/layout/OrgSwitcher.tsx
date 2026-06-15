@@ -9,6 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { LogOut, ChevronsUpDown, Check, Plus, Pencil, Loader2, Building2 } from 'lucide-react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 interface Org { id: string; name: string; role: string; active: boolean }
 interface Me { name: string | null; email: string }
@@ -23,6 +24,9 @@ export default function OrgSwitcher() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
+  // Focus trap for the open menu: cycles Tab within it, Escape closes, focus
+  // returns to the trigger on close.
+  const popoverRef = useFocusTrap<HTMLDivElement>(open, () => setOpen(false))
 
   useEffect(() => {
     fetch('/api/auth/me').then((r) => (r.ok ? r.json() : null)).then((d) => setMe(d?.user ?? null)).catch(() => {})
@@ -31,14 +35,12 @@ export default function OrgSwitcher() {
     }).catch(() => {})
   }, [])
 
-  // Click-away + Escape close the popover.
+  // Click-away closes the popover. (Escape + focus trapping is handled by useFocusTrap.)
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => { if (!rootRef.current?.contains(e.target as Node)) setOpen(false) }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
     document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+    return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
   const active = orgs.find((o) => o.active)
@@ -76,7 +78,11 @@ export default function OrgSwitcher() {
       {/* Popover (opens upward) */}
       {open && (
         <div
-          className="absolute bottom-full left-0 right-0 mb-2 rounded-xl shadow-2xl overflow-hidden z-50"
+          ref={popoverRef}
+          tabIndex={-1}
+          role="menu"
+          aria-label="Organizations"
+          className="absolute bottom-full left-0 right-0 mb-2 rounded-xl shadow-2xl overflow-hidden z-50 outline-none"
           style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}
         >
           {mode === 'list' ? (

@@ -3,7 +3,7 @@
  *   GET    — members + seat usage (any member of the org)
  *   DELETE — remove a member (owner only; the owner can never be removed)
  */
-import { withOrg } from '@/lib/api/with-org'
+import { withOrg, withOwner } from '@/lib/api/with-org'
 import { prisma } from '@/lib/prisma'
 import { getOrgRole, seatUsage } from '@/lib/org'
 
@@ -47,10 +47,7 @@ export const GET = withOrg(async (_request, { user, orgId }) => {
   })
 })
 
-export const DELETE = withOrg(async (request, { user, orgId }) => {
-  const role = await getOrgRole(orgId, user.id)
-  if (role !== 'OWNER') return Response.json({ error: 'Only the owner can remove members' }, { status: 403 })
-
+export const DELETE = withOwner(async (request, { orgId }) => {
   const targetId = new URL(request.url).searchParams.get('userId')
   if (!targetId) return Response.json({ error: 'userId is required' }, { status: 400 })
 

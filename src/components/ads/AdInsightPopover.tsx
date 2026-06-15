@@ -56,14 +56,26 @@ export default function AdInsightPopover({ txnId, platform }: { txnId: string; p
       .catch(() => setFailed(true))
   }, [open, txnId])
 
-  // Click-away close (touch devices have no mouseleave).
+  // Click-away close (touch devices have no mouseleave) + Escape for keyboard
+  // users. A popover isn't modal, so we don't trap focus — just make it
+  // keyboard-dismissible and hand focus back to the trigger.
   useEffect(() => {
     if (!open) return
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false)
+        ref.current?.querySelector('button')?.focus()
+      }
+    }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [open])
 
   const kpiCell = (label: string, value: string) => (

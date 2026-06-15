@@ -5,7 +5,10 @@ import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import NaviBadge from '@/components/ui/NaviBadge'
 import MetricCard from '@/components/ui/MetricCard'
-import ExpenseChart from '@/components/charts/ExpenseChart'
+import dynamic from 'next/dynamic'
+import ChartSkeleton from '@/components/charts/ChartSkeleton'
+// Lazy-loaded — pulls in recharts; kept out of the initial bundle.
+const ExpenseChart = dynamic(() => import('@/components/charts/ExpenseChart'), { ssr: false, loading: () => <ChartSkeleton /> })
 import Badge from '@/components/ui/Badge'
 import ConnectPrompt from '@/components/ConnectPrompt'
 import FreshnessLine, { type MonthlyMeta } from '@/components/model/FreshnessLine'

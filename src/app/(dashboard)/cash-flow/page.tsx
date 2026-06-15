@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react'
 import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import MetricCard from '@/components/ui/MetricCard'
-import CashFlowChart from '@/components/charts/CashFlowChart'
+import dynamic from 'next/dynamic'
+import ChartSkeleton from '@/components/charts/ChartSkeleton'
+// Lazy-loaded — pulls in recharts; kept out of the initial bundle.
+const CashFlowChart = dynamic(() => import('@/components/charts/CashFlowChart'), { ssr: false, loading: () => <ChartSkeleton /> })
 import ConnectPrompt from '@/components/ConnectPrompt'
 import InfoTip from '@/components/ui/InfoTip'
 import { formatCurrency, calcRunway } from '@/lib/utils'

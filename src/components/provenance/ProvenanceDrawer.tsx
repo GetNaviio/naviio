@@ -6,10 +6,11 @@
  * becomes an audit trail. The footer reconciles the list against the figure
  * the user clicked, and says so explicitly.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, Loader2, CheckCircle, AlertTriangle } from 'lucide-react'
 import Badge from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 export interface ProvenanceQuery {
   /** Human label for the header, e.g. "May 2026 · Expenses · Software" */
@@ -36,7 +37,8 @@ const SOURCE_LABEL: Record<string, string> = { plaid: 'Bank', stripe: 'Stripe', 
 export default function ProvenanceDrawer({ query, onClose }: { query: ProvenanceQuery; onClose: () => void }) {
   const [data, setData] = useState<{ rows: Row[]; total: number; count: number } | null>(null)
   const [failed, setFailed] = useState(false)
-  const panelRef = useRef<HTMLDivElement>(null)
+  // Focus trap + Escape-to-close + focus restore (the drawer is mounted only while open).
+  const panelRef = useFocusTrap<HTMLDivElement>(true, onClose)
 
   useEffect(() => {
     const ctrl = new AbortController()
@@ -49,14 +51,6 @@ export default function ProvenanceDrawer({ query, onClose }: { query: Provenance
       .catch((e) => { if (e?.name !== 'AbortError') setFailed(true) })
     return () => ctrl.abort()
   }, [query])
-
-  // Escape closes; focus moves into the drawer on open.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    panelRef.current?.focus()
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
 
   // The trust verdict: does the list reconcile with the figure on screen?
   const reconciles = data != null && Math.abs(data.total - query.figure) < 0.01
