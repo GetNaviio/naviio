@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-label="Naviio end card — Your Financial Co-Pilot, coming Q4 2026, join the waitlist">
+  <rect width="1080" height="1920" fill="#0a0e1a"/>
+
+  <g transform="translate(380,720)">
+    <rect x="0" y="0" width="150" height="46" rx="8" fill="#3B82F6"/>
+    <rect x="86" y="0" width="150" height="46" rx="8" fill="#06d6a0" opacity="0.92"/>
+  </g>
+  <text x="540" y="900" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="118" font-weight="700" letter-spacing="1">Naviio</text>
+  <text x="540" y="965" text-anchor="middle" fill="#8892a4" font-family="Arial, sans-serif" font-size="38" font-weight="400" letter-spacing="3">YOUR FINANCIAL CO-PILOT</text>
+
+  <line x1="390" y1="1050" x2="690" y2="1050" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2"/>
+
+  <text x="540" y="1180" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="56" font-weight="700">Don't fly blind.</text>
+
+  <g transform="translate(300,1280)">
+    <rect x="0" y="0" width="480" height="104" rx="52" fill="#3B82F6"/>
+    <text x="240" y="67" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="42" font-weight="700">Join the waitlist</text>
+  </g>
+
+  <text x="540" y="1520" text-anchor="middle" fill="#06d6a0" font-family="Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="2">COMING Q4 2026</text>
+</svg>

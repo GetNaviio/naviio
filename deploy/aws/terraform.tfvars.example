@@ -1,0 +1,22 @@
+# Copy to terraform.tfvars and fill in. Do NOT commit terraform.tfvars.
+region              = "us-east-1"
+domain_name         = "app.naviio.com"
+acm_certificate_arn = "arn:aws:acm:us-east-1:<acct>:certificate/<id>"
+
+# Set after the first image push (terraform output ecr_repository_url):
+container_image = "<acct>.dkr.ecr.us-east-1.amazonaws.com/naviio:latest"
+
+desired_count = 2
+task_cpu      = 512
+task_memory   = 1024
+
+app_env = {
+  NODE_ENV             = "production"
+  NEXT_PUBLIC_BASE_URL = "https://app.naviio.com"
+  PLAID_ENV            = "production"
+  PLAID_WEBHOOK_URL    = "https://app.naviio.com/api/auth/plaid/webhook"
+  PLAID_REDIRECT_URI   = "https://app.naviio.com/integrations/oauth"
+}
+
+# Sensitive — keep terraform.tfvars out of git and TF state encrypted.
+cron_secret = "REPLACE_with_the_same_CRON_SECRET_value_stored_in_Secrets_Manager"

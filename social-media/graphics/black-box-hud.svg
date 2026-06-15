@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-label="Black Box cockpit warning HUD title card with critical cash flow alert">
+  <rect width="1080" height="1920" fill="#05070d"/>
+  <rect width="1080" height="1920" fill="#ff1f1f" opacity="0.06"/>
+
+  <line x1="0" y1="960" x2="1080" y2="960" stroke="#06d6a0" stroke-opacity="0.25" stroke-width="2"/>
+  <line x1="540" y1="0" x2="540" y2="1920" stroke="#06d6a0" stroke-opacity="0.10" stroke-width="2"/>
+  <g stroke="#06d6a0" stroke-opacity="0.30" stroke-width="3" fill="none">
+    <path d="M300 960 l60 -40 l60 40"/>
+    <path d="M780 960 l-60 -40 l-60 40"/>
+  </g>
+
+  <g transform="translate(540,470)">
+    <polygon points="0,-70 80,70 -80,70" fill="none" stroke="#ff4d4d" stroke-width="8" stroke-linejoin="round"/>
+    <rect x="-7" y="-25" width="14" height="50" rx="4" fill="#ff4d4d"/>
+    <circle cx="0" cy="45" r="9" fill="#ff4d4d"/>
+  </g>
+  <text x="540" y="640" text-anchor="middle" fill="#ff4d4d" font-family="Arial, sans-serif" font-size="86" font-weight="700" letter-spacing="6">WARNING</text>
+
+  <g font-family="Arial, sans-serif">
+    <text x="150" y="800" fill="#9aa3b4" font-size="34" font-weight="400">ALTITUDE</text>
+    <rect x="150" y="820" width="780" height="14" rx="7" fill="#ffffff" opacity="0.12"/>
+    <rect x="150" y="820" width="250" height="14" rx="7" fill="#ff4d4d"/>
+
+    <text x="150" y="900" fill="#9aa3b4" font-size="34" font-weight="400">REVENUE</text>
+    <rect x="150" y="920" width="780" height="14" rx="7" fill="#ffffff" opacity="0.12"/>
+    <rect x="150" y="920" width="430" height="14" rx="7" fill="#f59e0b"/>
+
+    <text x="150" y="980" fill="#9aa3b4" font-size="34" font-weight="400">CASH FLOW</text>
+    <rect x="150" y="1000" width="780" height="14" rx="7" fill="#ffffff" opacity="0.12"/>
+    <rect x="150" y="1000" width="120" height="14" rx="7" fill="#ff4d4d"/>
+  </g>
+
+  <text x="540" y="1180" text-anchor="middle" fill="#ff4d4d" font-family="Arial, sans-serif" font-size="60" font-weight="700" letter-spacing="4">PULL UP</text>
+
+  <text x="540" y="1480" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="46" font-weight="700">Every business that fails</text>
+  <text x="540" y="1545" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="46" font-weight="700">has a <tspan fill="#9aa3b4">black box.</tspan></text>
+  <text x="540" y="1700" text-anchor="middle" fill="#06d6a0" font-family="Arial, sans-serif" font-size="34" font-weight="700">Naviio reads yours — live.</text>
+</svg>

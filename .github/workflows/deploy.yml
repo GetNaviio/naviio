@@ -1,0 +1,137 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Required GitHub repository secrets — add at:
+#   Settings → Secrets and variables → Actions → New repository secret
+#
+#   VERCEL_TOKEN          — Vercel personal access token (vercel.com/account/tokens)
+#   VERCEL_ORG_ID         — from .vercel/project.json after `vercel link`
+#   VERCEL_PROJECT_ID     — from .vercel/project.json after `vercel link`
+#   DATABASE_URL          — production Postgres connection string
+#   SLACK_WEBHOOK_URL     — Slack incoming webhook for deploy notifications
+#
+# Optional (passed as Vercel env vars on deploy):
+#   STRIPE_SECRET_KEY
+#   PLAID_CLIENT_ID / PLAID_SECRET
+#   ANTHROPIC_API_KEY
+#   JWT_SECRET
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # never cancel an in-flight deploy
+
+jobs:
+  deploy:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+      url: https://app.naviio.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      # ── Generate Prisma client ───────────────────────────────────────────
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      # ── Run DB migrations against production ────────────────────────────
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # ── Deploy to Vercel ─────────────────────────────────────────────────
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build project artifacts
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to production
+        id: deploy
+        run: |
+          URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> $GITHUB_OUTPUT
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      # ── Post-deploy smoke check ──────────────────────────────────────────
+      # Deep health = app responding AND database reachable. A deploy that
+      # cannot reach Postgres is a failed deploy, not a success notification.
+      - name: Verify deployment (deep health check)
+        run: |
+          URL="${{ steps.deploy.outputs.url }}"
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL/api/health?deep=1" || echo 000)
+            if [ "$STATUS" = "200" ]; then
+              echo "Deep health OK"; exit 0
+            fi
+            echo "Attempt $i: status $STATUS — retrying in 10s"; sleep 10
+          done
+          echo "Deployment unhealthy after 5 attempts"; exit 1
+
+      # ── Slack notification — success ─────────────────────────────────────
+      - name: Notify Slack (success)
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "✅ *Naviio deployed to production*",
+              "attachments": [{
+                "color": "good",
+                "fields": [
+                  { "title": "Branch",  "value": "${{ github.ref_name }}", "short": true },
+                  { "title": "Commit",  "value": "${{ github.sha }}", "short": true },
+                  { "title": "Author",  "value": "${{ github.actor }}", "short": true },
+                  { "title": "URL",     "value": "${{ steps.deploy.outputs.url }}", "short": false }
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      # ── Slack notification — failure ─────────────────────────────────────
+      - name: Notify Slack (failure)
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "❌ *Naviio deploy FAILED*",
+              "attachments": [{
+                "color": "danger",
+                "fields": [
+                  { "title": "Branch", "value": "${{ github.ref_name }}", "short": true },
+                  { "title": "Commit", "value": "${{ github.sha }}", "short": true },
+                  { "title": "Author", "value": "${{ github.actor }}", "short": true },
+                  { "title": "Logs",   "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "short": false }
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

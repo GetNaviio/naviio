@@ -1,0 +1,582 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Plan {
+  STARTER
+  GROWTH
+  PRO
+  CFO
+}
+
+enum IntegrationProvider {
+  PLAID
+  QUICKBOOKS
+  STRIPE
+  XERO
+  GUSTO
+  ADP
+  SHOPIFY
+  GOHIGHLEVEL
+  META_ADS
+  GOOGLE_ADS
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  ERROR
+  DISCONNECTED
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum ReportType {
+  PNL
+  CASHFLOW
+  BALANCE_SHEET
+  COMMENTARY
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+// Where an expense lands in the financial model. COGS = cost of revenue (drives
+// gross margin); OPEX = operating expense; OTHER = excluded from gross-margin math.
+enum ExpenseClass {
+  COGS
+  OPEX
+  OTHER
+}
+
+// Role inside an organization. The org's creator (Organization.userId) is the
+// implicit OWNER and has no OrgMember row; OrgMember rows are invited users.
+enum OrgRole {
+  OWNER
+  MEMBER
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  image        String?
+  passwordHash String?
+  mfaEnabled   Boolean   @default(false)
+  mfaSecret    String?   // encrypted TOTP secret
+  // Account-deletion flag. Set on a deletion request; access is disabled
+  // immediately and the record + all data are hard-deleted by the nightly purge
+  // job 30 days later (SEC-POL-003 §5.2 grace window).
+  deletedAt    DateTime?
+  // Which org the user is currently working in (must be one they own or belong
+  // to — validated on every resolve, so a revoked membership falls back safely).
+  activeOrgId  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  organizations Organization[]
+  credentials   Credential[]
+  memberships   OrgMember[]
+}
+
+// WebAuthn / passkey credentials (second factor or passwordless). One row per
+// registered authenticator; see @simplewebauthn/server data model.
+model Credential {
+  id             String   @id // Base64URL credential ID
+  userId         String
+  publicKey      Bytes
+  counter        Int      @default(0)
+  deviceType     String   // 'singleDevice' | 'multiDevice'
+  backedUp       Boolean  @default(false)
+  transports     String?  // CSV: 'internal','hybrid','usb','nfc','ble'
+  webauthnUserID String
+  name           String?  // user-facing label
+  createdAt      DateTime @default(now())
+  lastUsedAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([webauthnUserID])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Organization ─────────────────────────────────────────────────────────────
+
+model Organization {
+  id                   String   @id @default(cuid())
+  name                 String
+  userId               String
+  plan                 Plan     @default(STARTER)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  // White-label (CFO Suite): a client entity's own brand on the portal and
+  // exported reports. logoUrl is an https image URL; brandColor a #hex accent.
+  // hideNaviioBranding minimizes the "Powered by Navi" mark where allowed.
+  brandLogoUrl         String?
+  brandColor           String?
+  hideNaviioBranding   Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  owner             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  integrations      Integration[]
+  transactions      Transaction[]
+  categories        Category[]
+  reports           Report[]
+  alerts            Alert[]
+  mrrSnapshots      MrrSnapshot[]
+  txnClassifications TxnClassification[]
+  creditAccount     CreditAccount?
+  creditLedger      CreditLedgerEntry[]
+  forecastScenarios ForecastScenario[]
+  workforceRoles    WorkforceRole[]
+  budgetLines       BudgetLine[]
+  integrationRequests IntegrationRequest[]
+  adInsights        AdInsight[]
+  members           OrgMember[]
+  invitations       Invitation[]
+  portalShares      PortalShare[]
+
+  @@index([userId])
+}
+
+/**
+ * Client portal share (CFO Suite): a read-only, login-less link a CFO sends
+ * a client to view this org's headline financials. Only a SHA-256 hash of the
+ * token is stored — the raw link is shown once at creation. Revocable
+ * (revokedAt) and optionally time-boxed (expiresAt). `scopes` is a CSV of the
+ * sections the link may show (pnl, cash, kpis), so a CFO can share a cash-only
+ * view without exposing the full P&L.
+ */
+model PortalShare {
+  id           String    @id @default(cuid())
+  orgId        String
+  label        String    // who/what this link is for, e.g. "Q2 board view"
+  tokenHash    String    @unique
+  scopes       String    @default("pnl,cash,kpis")
+  createdById  String
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  lastViewedAt DateTime?
+  viewCount    Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+/**
+ * Team membership: one row per invited user in an org. The org creator is the
+ * implicit OWNER (Organization.userId) and never has a row here — that keeps
+ * the existing single-user data model untouched and needs no backfill.
+ */
+model OrgMember {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String
+  role      OrgRole  @default(MEMBER)
+  createdAt DateTime @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([userId])
+}
+
+/**
+ * Pending team invite. Only a SHA-256 hash of the invite token is stored — the
+ * raw link is shown once at creation (re-inviting regenerates it). Accepting
+ * requires the logged-in user's email to match, so the link alone is not a
+ * bearer credential. One live invite per (org, email); re-invites upsert.
+ */
+model Invitation {
+  id          String    @id @default(cuid())
+  orgId       String
+  email       String
+  role        OrgRole   @default(MEMBER)
+  tokenHash   String    @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, email])
+  @@index([orgId])
+}
+
+/**
+ * One row per (org, ad platform, ad account, day): the platform-reported
+ * spend and KPIs from Meta/Google Ads. Daily grain on purpose — ad platforms
+ * bill in irregular windows (thresholds, month-end), so the bank-charge
+ * matcher sums whatever span of days reconciles against the charge amount.
+ * Money is Decimal like every other money column.
+ */
+model AdInsight {
+  id              String              @id @default(cuid())
+  orgId           String
+  provider        IntegrationProvider
+  accountId       String
+  accountName     String?
+  date            String // 'YYYY-MM-DD' UTC, lexically ordered like months
+  spend           Decimal             @db.Decimal(19, 4)
+  impressions     Int                 @default(0)
+  clicks          Int                 @default(0)
+  conversions     Float               @default(0)
+  conversionValue Decimal?            @db.Decimal(19, 4)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, provider, accountId, date])
+  @@index([orgId, provider, date])
+}
+
+/**
+ * A vote for a not-yet-built connector from the integrations catalog.
+ * One row per (org, slug) — roadmap priority = count of rows per slug, so we
+ * build what users actually ask for. Slug is a catalog slug
+ * (src/lib/integrations/catalog.ts), intentionally a String not an enum so
+ * adding catalog entries never needs a migration.
+ */
+model IntegrationRequest {
+  id        String   @id @default(cuid())
+  orgId     String
+  slug      String
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, slug])
+  @@index([slug])
+}
+
+/**
+ * Per-subscription MRR captured once per month. Enables real NRR, the MRR
+ * waterfall (new/expansion/contraction/churned), and cohort retention by
+ * comparing a subscription's MRR across periods. One row per (org, sub, period).
+ */
+model MrrSnapshot {
+  id             String   @id @default(cuid())
+  orgId          String
+  period         String   // 'YYYY-MM' of the snapshot month
+  subscriptionId String   // Stripe subscription id
+  customerId     String?
+  mrr            Decimal  @db.Decimal(19, 4) // monthly recurring value, major units (exact — no float drift)
+  status         String   // active, past_due, canceled, …
+  cohortMonth    String   // 'YYYY-MM' the subscription first started
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, subscriptionId, period])
+  @@index([orgId, period])
+  @@index([orgId, cohortMonth])
+}
+
+// ─── Integrations ─────────────────────────────────────────────────────────────
+
+model Integration {
+  id           String              @id @default(cuid())
+  orgId        String
+  provider     IntegrationProvider
+  accessToken  String?             @db.Text
+  refreshToken String?             @db.Text
+  realmId      String?
+  itemId       String?
+  // Plaid /transactions/sync cursor — persisted so syncs are incremental
+  transactionCursor String?         @db.Text
+  expiresAt    DateTime?
+  lastSyncedAt DateTime?
+  status       IntegrationStatus   @default(CONNECTED)
+  // Plaid NEW_ACCOUNTS_AVAILABLE webhook → prompt the user to add accounts via
+  // update mode (account_selection_enabled). Distinct from status: the item is
+  // still healthy/CONNECTED; this just flags that new accounts can be added.
+  newAccountsAvailable Boolean      @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([orgId, provider])
+  @@index([orgId, status])
+  // Webhooks arrive keyed by Plaid item_id — index for fast org lookup
+  @@index([itemId])
+}
+
+// ─── Transactions ─────────────────────────────────────────────────────────────
+
+model Transaction {
+  id            String          @id @default(cuid())
+  orgId         String
+  integrationId String?
+  // Provider transaction id. Unique PER ORG (not globally): two orgs syncing the
+  // same provider must never collide, and uniqueness scoped by orgId means every
+  // upsert is tenant-isolated by construction.
+  externalId    String
+  date          DateTime
+  // Money is exact Decimal — never Float (IEEE 754 drift compounds in P&L math).
+  amount        Decimal         @db.Decimal(19, 4)
+  currency      String          @default("USD")
+  description   String
+  category      String?
+  merchantName  String?
+  accountId     String?
+  type          TransactionType
+  source        String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now()) @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  integration  Integration?  @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, externalId])
+  @@index([orgId, date])
+  @@index([orgId, category])
+  @@index([orgId, type, date]) // P&L groupBy(type) over date ranges
+  @@index([integrationId])
+}
+
+// ─── Categories ───────────────────────────────────────────────────────────────
+
+model Category {
+  id       String  @id @default(cuid())
+  orgId    String
+  name     String
+  color    String?
+  parentId String?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  parent       Category?    @relation("CategoryTree", fields: [parentId], references: [id])
+  children     Category[]   @relation("CategoryTree")
+
+  @@index([orgId])
+  @@index([parentId])
+}
+
+// ─── Reports ──────────────────────────────────────────────────────────────────
+
+model Report {
+  id          String     @id @default(cuid())
+  orgId       String
+  type        ReportType
+  data        Json
+  period      String
+  generatedAt DateTime   @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, type])
+  @@index([orgId, period])
+}
+
+// ─── Alerts ───────────────────────────────────────────────────────────────────
+
+model Alert {
+  id        String        @id @default(cuid())
+  orgId     String
+  type      String
+  message   String
+  severity  AlertSeverity @default(INFO)
+  isRead    Boolean       @default(false)
+  createdAt DateTime      @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, isRead])
+  @@index([orgId, severity])
+  @@index([orgId, createdAt])
+}
+
+// ─── Waitlist ─────────────────────────────────────────────────────────────────
+
+model Waitlist {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+// ─── Financial model: COGS/OpEx overrides ──────────────────────────────────────
+
+// A user's manual classification of a transaction as COGS / OpEx / Other.
+// Keyed by the transaction's stable externalId so the tag survives re-syncs
+// (transactions are upserted by externalId and would otherwise overwrite a column).
+model TxnClassification {
+  id           String        @id @default(cuid())
+  orgId        String
+  externalId   String        // Transaction.externalId this override applies to
+  // Either (or both) may be set: expenseClass drives the model's gross-margin
+  // math; category overrides the display label on Expenses/P&L drill-downs.
+  expenseClass ExpenseClass?
+  category     String?
+  note         String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, externalId])
+  @@index([orgId])
+}
+
+// ─── Forecast scenarios ─────────────────────────────────────────────────────────
+
+// User-defined forecast scenarios (multipliers applied to the base projection).
+// The built-in bear/base/bull cases live in code (DEFAULT_SCENARIOS); only
+// custom scenarios are persisted. Previously held in a module-level array —
+// lost on every restart and not org-scoped.
+model ForecastScenario {
+  id                   String   @id @default(cuid())
+  orgId                String
+  name                 String
+  growthMultiplier     Float
+  churnMultiplier      Float
+  opexGrowthMultiplier Float
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+}
+
+// ─── FP&A planning models ────────────────────────────────────────────────────────
+
+// A planned role in the workforce model. Cost contribution for a month m is
+// headcount × monthlySalary × (1 + loadedPct/100) when startMonth ≤ m ≤ endMonth
+// (endMonth null = ongoing). Months are 'YYYY-MM' strings (lexically ordered).
+model WorkforceRole {
+  id            String   @id @default(cuid())
+  orgId         String
+  title         String
+  department    String?  // optional cost-center dimension (Engineering, Sales, G&A, …)
+  headcount     Int      @default(1)
+  monthlySalary Decimal  @db.Decimal(19, 4) // per person, gross monthly
+  loadedPct     Float    @default(25)       // employer taxes/benefits/tools uplift %
+  startMonth    String   // 'YYYY-MM'
+  endMonth      String?  // 'YYYY-MM' inclusive; null = ongoing
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+enum BudgetLineKind {
+  REVENUE
+  COGS
+  OPEX
+}
+
+// One budgeted amount per org × month × P&L line. Actuals come from the ledger
+// at read time — only the plan is stored.
+model BudgetLine {
+  id        String         @id @default(cuid())
+  orgId     String
+  month     String         // 'YYYY-MM'
+  line      BudgetLineKind
+  amount    Decimal        @db.Decimal(19, 4)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, month, line])
+  @@index([orgId, month])
+}
+
+// ─── Credits / usage-based billing ──────────────────────────────────────────────
+
+// One credit balance per org. `balance` is in whole credits. The authoritative
+// history is CreditLedgerEntry; this row is the fast-read running total, always
+// updated in the same transaction as a ledger entry.
+model CreditAccount {
+  id        String   @id @default(cuid())
+  orgId     String   @unique
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+// Append-only ledger of every credit change: positive `delta` = purchase/grant,
+// negative = a metered feature charge. `balanceAfter` snapshots the running total.
+model CreditLedgerEntry {
+  id           String   @id @default(cuid())
+  orgId        String
+  delta        Int      // + credits added, - credits charged
+  balanceAfter Int
+  reason       String   // 'purchase' | 'grant' | 'charge' | 'refund'
+  feature      String?  // 'navi_message' | 'realtime_refresh' (charges)
+  // Stripe Checkout session id (purchases only). UNIQUE so a concurrent
+  // webhook + return-confirm can't double-credit one payment (Postgres permits
+  // multiple NULLs, so charge/refund/grant rows are unaffected).
+  stripeRef    String?  @unique
+  createdAt    DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+}

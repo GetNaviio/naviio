@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-label="Naviio financial health score hexagon at 82 out of 100 across six metrics">
+  <rect width="1080" height="1920" fill="#0a0e1a"/>
+  <rect width="1080" height="1920" fill="#0c1426" opacity="0.5"/>
+
+  <g transform="translate(80,150)">
+    <rect x="0" y="0" width="58" height="20" rx="4" fill="#3B82F6"/>
+    <rect x="34" y="0" width="58" height="20" rx="4" fill="#06d6a0" opacity="0.9"/>
+    <text x="120" y="17" fill="#ffffff" font-family="Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="0.5">Naviio</text>
+  </g>
+
+  <text x="540" y="330" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="52" font-weight="700">Your financial health,</text>
+  <text x="540" y="398" text-anchor="middle" fill="#3B82F6" font-family="Arial, sans-serif" font-size="52" font-weight="700">in one number.</text>
+
+  <g>
+    <polygon points="540,540 851.8,720 851.8,1080 540,1260 228.2,1080 228.2,720" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2"/>
+    <polygon points="540,690 727.1,798 727.1,1014 540,1122 352.9,1014 352.9,798" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2"/>
+    <line x1="540" y1="900" x2="540" y2="540"   stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+    <line x1="540" y1="900" x2="851.8" y2="720" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+    <line x1="540" y1="900" x2="851.8" y2="1080" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+    <line x1="540" y1="900" x2="540" y2="1260"   stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+    <line x1="540" y1="900" x2="228.2" y2="1080" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+    <line x1="540" y1="900" x2="228.2" y2="720"  stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+
+    <polygon points="540,594 758.2,774 727.1,1008 540,1188 306.2,1035 337.4,783" fill="#3B82F6" fill-opacity="0.22" stroke="#3B82F6" stroke-width="4"/>
+    <g fill="#06d6a0">
+      <circle cx="540" cy="594" r="9"/><circle cx="758.2" cy="774" r="9"/><circle cx="727.1" cy="1008" r="9"/>
+      <circle cx="540" cy="1188" r="9"/><circle cx="306.2" cy="1035" r="9"/><circle cx="337.4" cy="783" r="9"/>
+    </g>
+
+    <text x="540" y="930" text-anchor="middle" fill="#10B981" font-family="Arial, sans-serif" font-size="150" font-weight="700">82</text>
+    <text x="540" y="985" text-anchor="middle" fill="#8892a4" font-family="Arial, sans-serif" font-size="34" font-weight="400">health score</text>
+  </g>
+
+  <text x="540" y="500" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="30" font-weight="700">Revenue growth</text>
+  <text x="885" y="700" text-anchor="start"  fill="#ffffff" font-family="Arial, sans-serif" font-size="30" font-weight="700">Profit margin</text>
+  <text x="885" y="1100" text-anchor="start" fill="#ffffff" font-family="Arial, sans-serif" font-size="30" font-weight="700">Cash flow</text>
+  <text x="540" y="1330" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="30" font-weight="700">Debt ratio</text>
+  <text x="195" y="1100" text-anchor="end"  fill="#ffffff" font-family="Arial, sans-serif" font-size="30" font-weight="700">Expense control</text>
+  <text x="195" y="700" text-anchor="end"   fill="#ffffff" font-family="Arial, sans-serif" font-size="30" font-weight="700">DSO</text>
+
+  <text x="540" y="1560" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="40" font-weight="700">Six signals. One score. Real time.</text>
+  <text x="540" y="1770" text-anchor="middle" fill="#8892a4" font-family="Arial, sans-serif" font-size="30" font-weight="400">Coming Q4 2026 — join the waitlist</text>
+</svg>
