@@ -1,8 +1,11 @@
 name: Deploy
 
+# Manual-only. Production deploys run on demand from the Actions tab
+# (Run workflow) — never automatically on push. So a push can't ship to prod,
+# and this workflow won't fail on every commit. Configure the Vercel + DB
+# secrets below before running it.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 # Required GitHub repository secrets — add at:
 #   Settings → Secrets and variables → Actions → New repository secret
