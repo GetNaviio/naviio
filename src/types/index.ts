@@ -76,6 +76,10 @@ export interface Transaction {
   editable?: boolean
   /** Category was fixed by the user (override active) */
   overridden?: boolean
+  /** Gross-margin split for expense rows: COGS vs operating expense (null otherwise) */
+  expenseClass?: 'COGS' | 'OPEX' | 'OTHER' | null
+  /** COGS/OpEx class was fixed by the user (override active) */
+  cogsOverridden?: boolean
 }
 
 export interface KPIMetric {

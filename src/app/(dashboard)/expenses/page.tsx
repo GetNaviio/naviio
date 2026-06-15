@@ -64,6 +64,8 @@ export default function ExpensesPage() {
   // refreshes EVERYTHING after a reclassification (cards, chart, list) so the
   // fix visibly moves the numbers everywhere at once.
   const [editing, setEditing] = useState<string | null>(null)
+  // Which row's COGS/OpEx tag editor is open (separate from the category editor).
+  const [cogsEditing, setCogsEditing] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
@@ -167,6 +169,22 @@ export default function ExpensesPage() {
           })
       if (res.ok) setReloadKey((k) => k + 1) // one fix → every view updates
     } catch { /* row keeps its old label; user can retry */ }
+  }
+
+  // Tag a transaction as COGS or operating expense (or reset to auto). Same
+  // write path as reclassify — PATCH expenseClass — so the gross-margin split in
+  // the P&L and Financial Model moves with one fix. null = back to the heuristic.
+  async function setCogs(tx: Transaction, expenseClass: 'COGS' | 'OPEX' | null) {
+    setCogsEditing(null)
+    if (!tx.externalId) return
+    try {
+      const res = await fetch('/api/transactions/classify', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ externalId: tx.externalId, expenseClass }),
+      })
+      if (res.ok) setReloadKey((k) => k + 1)
+    } catch { /* row keeps its old tag; user can retry */ }
   }
   const largest = expenseCategories[0]
   const monthsDesc = useMemo(() => [...months24].reverse(), [months24])
@@ -347,13 +365,14 @@ export default function ExpensesPage() {
                             </div>
                           </div>
                         </th>
+                        <th className="px-4 py-3 text-left font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }} title="Cost of revenue vs operating expense — drives the gross-margin split in your P&L and Financial Model">COGS / OpEx</th>
                         <th className="px-4 py-3 text-left font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>Source</th>
                         <th className="px-4 py-3 text-left font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>Amount</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredTx.length === 0 ? (
-                        <tr><td colSpan={5} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>{txLoading ? 'Loading transactions…' : `No transactions${activeCategory ? ` in "${activeCategory}"` : ''}${scope.kind === 'month' ? ` for ${scope.label}` : ' yet'}.`}</td></tr>
+                        <tr><td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>{txLoading ? 'Loading transactions…' : `No transactions${activeCategory ? ` in "${activeCategory}"` : ''}${scope.kind === 'month' ? ` for ${scope.label}` : ' yet'}.`}</td></tr>
                       ) : (
                         filteredTx.map((tx, i) => (
                           <tr key={tx.id} className="group" style={{ borderBottom: '1px solid var(--color-surface-border)', backgroundColor: i % 2 === 0 ? 'transparent' : 'var(--color-surface-bg)' }}>
@@ -399,6 +418,41 @@ export default function ExpensesPage() {
                                       <Pencil size={11} />
                                     </button>
                                   )}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {!tx.editable || !tx.expenseClass ? (
+                                <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+                              ) : cogsEditing === tx.id ? (
+                                <select
+                                  autoFocus
+                                  defaultValue={tx.cogsOverridden ? tx.expenseClass : '__auto__'}
+                                  onChange={(e) => setCogs(tx, e.target.value === '__auto__' ? null : (e.target.value as 'COGS' | 'OPEX'))}
+                                  onBlur={() => setCogsEditing(null)}
+                                  className="px-1.5 py-1 rounded text-xs outline-none cursor-pointer"
+                                  style={{ backgroundColor: 'var(--color-surface-input)', color: 'var(--color-text-primary)', border: '1px solid #3B82F6' }}
+                                  aria-label="Tag as COGS or operating expense"
+                                >
+                                  <option value="COGS">COGS</option>
+                                  <option value="OPEX">OpEx</option>
+                                  {tx.cogsOverridden && <option value="__auto__">↺ Reset to auto</option>}
+                                </select>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Badge variant={tx.expenseClass === 'COGS' ? 'warning' : 'neutral'} size="sm">
+                                    {tx.expenseClass === 'COGS' ? 'COGS' : 'OpEx'}
+                                  </Badge>
+                                  {tx.cogsOverridden && <Sparkles size={10} style={{ color: '#14B8A6' }} aria-label="Tagged by you" />}
+                                  <button
+                                    onClick={() => setCogsEditing(tx.id)}
+                                    className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+                                    style={{ color: 'var(--color-text-muted)' }}
+                                    aria-label={`Tag ${tx.description} as COGS or operating expense`}
+                                    title="Tag as COGS or OpEx"
+                                  >
+                                    <Pencil size={11} />
+                                  </button>
                                 </span>
                               )}
                             </td>

@@ -7,7 +7,18 @@ import Card from '@/components/ui/Card'
 import TeamSection from '@/components/settings/TeamSection'
 import PortalSection from '@/components/settings/PortalSection'
 import BrandingSection from '@/components/settings/BrandingSection'
-import { Shield, ShieldCheck, ShieldOff, Smartphone, Copy, CheckCircle, AlertTriangle, KeyRound, Trash2 } from 'lucide-react'
+import CreditsSection from '@/components/settings/CreditsSection'
+import { Shield, ShieldCheck, ShieldOff, Smartphone, Copy, CheckCircle, AlertTriangle, KeyRound, Trash2, Building2, Wallet, Share2, UserCog } from 'lucide-react'
+
+type SettingsTab = 'organization' | 'billing' | 'sharing' | 'security' | 'account'
+const TABS: { id: SettingsTab; label: string; icon: typeof Shield }[] = [
+  { id: 'organization', label: 'Organization',      icon: Building2 },
+  { id: 'billing',      label: 'Billing & Credits', icon: Wallet },
+  { id: 'sharing',      label: 'Sharing',           icon: Share2 },
+  { id: 'security',     label: 'Security',          icon: Shield },
+  { id: 'account',      label: 'Account',           icon: UserCog },
+]
+const TAB_IDS = TABS.map((t) => t.id) as string[]
 
 interface Passkey { id: string; name: string | null; deviceType: string; backedUp: boolean; createdAt: string; lastUsedAt: string | null }
 
@@ -31,6 +42,22 @@ export default function SettingsPage() {
   const [passkeys,     setPasskeys]     = useState<Passkey[]>([])
   const [passkeyBusy,  setPasskeyBusy]  = useState(false)
   const [passkeyError, setPasskeyError] = useState('')
+  const [tab,          setTab]          = useState<SettingsTab>('organization')
+
+  // Pick the initial tab after mount (avoids SSR/client hash mismatch): a
+  // returning Stripe Checkout (?credits=…) lands on Billing; otherwise honor the
+  // #hash so a tab is linkable and survives reload.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('credits')) { setTab('billing'); return }
+    const hash = window.location.hash.replace('#', '')
+    if (TAB_IDS.includes(hash)) setTab(hash as SettingsTab)
+  }, [])
+
+  function selectTab(id: SettingsTab) {
+    setTab(id)
+    window.history.replaceState(null, '', `#${id}`)
+  }
 
   async function loadPasskeys() {
     try {
@@ -155,19 +182,50 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <Header title="Settings" subtitle="Team, authentication, and account security" />
+      <Header title="Settings" subtitle="Organization, billing, sharing, and security" />
 
-      <div className="p-4 sm:p-6 max-w-2xl space-y-6">
+      <div className="p-4 sm:p-6">
+        {/* ── Sub-navigation ── */}
+        <nav className="flex gap-1 mb-6 overflow-x-auto border-b" style={{ borderColor: 'var(--color-surface-border)' }}>
+          {TABS.map(({ id, label, icon: Icon }) => {
+            const active = tab === id
+            return (
+              <button
+                key={id}
+                onClick={() => selectTab(id)}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors"
+                style={{
+                  color: active ? 'var(--color-info)' : 'var(--color-text-secondary)',
+                  borderBottom: `2px solid ${active ? 'var(--color-info)' : 'transparent'}`,
+                  marginBottom: -1,
+                }}
+              >
+                <Icon size={15} />
+                {label}
+              </button>
+            )
+          })}
+        </nav>
 
-        {/* ── Team & organizations ── */}
-        <TeamSection />
+        <div className={`${tab === 'billing' ? 'max-w-4xl' : 'max-w-2xl'} space-y-6`}>
 
-        {/* ── Client portal (read-only shares) ── */}
-        <PortalSection />
+        {/* ── Organization: team & entities ── */}
+        {tab === 'organization' && <TeamSection />}
 
-        {/* ── White-label branding ── */}
-        <BrandingSection />
+        {/* ── Billing & credits ── */}
+        {tab === 'billing' && <CreditsSection />}
 
+        {/* ── Sharing: client portal + white-label branding ── */}
+        {tab === 'sharing' && (
+          <>
+            <PortalSection />
+            <BrandingSection />
+          </>
+        )}
+
+        {/* ── Security: 2FA + passkeys ── */}
+        {tab === 'security' && (
+          <>
         {/* MFA status banner */}
         <div
           className="flex items-center gap-4 px-5 py-4 rounded-xl"
@@ -465,8 +523,11 @@ export default function SettingsPage() {
             )}
           </div>
         </Card>
+          </>
+        )}
 
-        {/* ── Danger Zone: account deletion (SEC-POL-003 §5) ── */}
+        {/* ── Account: danger zone (SEC-POL-003 §5) ── */}
+        {tab === 'account' && (
         <div className="rounded-xl p-5" style={{ backgroundColor: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.3)' }}>
           <div className="flex items-center gap-2 mb-1">
             <AlertTriangle size={16} style={{ color: '#EF4444' }} />
@@ -506,7 +567,9 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+        )}
 
+        </div>
       </div>
     </div>
   )

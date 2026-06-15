@@ -14,6 +14,17 @@ function stripe(): Stripe {
 }
 
 /**
+ * Sanitize a post-checkout return path. Only an in-app path (a single leading
+ * slash followed by safe chars) is allowed — anything else (absolute URLs,
+ * protocol-relative `//evil.com`, schemes) would be an open redirect on the
+ * Stripe success/cancel URL, so it falls back to '/dashboard'.
+ */
+export function safeReturnPath(returnPath: string | undefined): string {
+  if (!returnPath) return '/dashboard'
+  return /^\/[A-Za-z0-9/_-]*$/.test(returnPath) ? returnPath : '/dashboard'
+}
+
+/**
  * Create a one-time Checkout Session for a credit pack. orgId + credits ride in
  * metadata so the webhook knows who to credit and how much. Returns the hosted
  * Checkout URL to redirect the user to.
@@ -22,9 +33,11 @@ export async function createCreditCheckout(
   orgId: string,
   packId: string,
   origin: string,
+  returnPath = '/dashboard',
 ): Promise<string> {
   const pack = packById(packId)
   if (!pack) throw new Error('unknown_pack')
+  const safeReturn = safeReturnPath(returnPath)
   const session = await stripe().checkout.sessions.create({
     mode: 'payment',
     line_items: [
@@ -41,8 +54,8 @@ export async function createCreditCheckout(
       },
     ],
     metadata: { orgId, packId: pack.id, credits: String(pack.credits) },
-    success_url: `${origin}/dashboard?credits=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}/dashboard?credits=cancel`,
+    success_url: `${origin}${safeReturn}?credits=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${origin}${safeReturn}?credits=cancel`,
   })
   if (!session.url) throw new Error('no_checkout_url')
   return session.url

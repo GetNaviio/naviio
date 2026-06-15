@@ -1,7 +1,8 @@
 import { requireAuth, getDefaultOrgId } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { classify } from '@/lib/metrics/classify'
-import { categoryOverrides } from '@/lib/metrics/ledger'
+import { classifyExpense } from '@/lib/model/cogs'
+import { categoryOverrides, classificationOverrides } from '@/lib/metrics/ledger'
 
 /**
  * Recent transactions for the Expenses table — real rows from the ledger, each
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
       dateWindow = { gte: new Date(Date.UTC(y, mo - 1, 1)), lt: new Date(Date.UTC(y, mo, 1)) }
     }
 
-    const [rows, catOverrides] = await Promise.all([
+    const [rows, catOverrides, classOverrides] = await Promise.all([
       prisma.transaction.findMany({
         where: { orgId, ...(dateWindow ? { date: dateWindow } : {}) },
         orderBy: { date: 'desc' },
@@ -38,27 +39,36 @@ export async function GET(request: Request) {
         },
       }),
       categoryOverrides(orgId), // user category fixes — applied everywhere
+      classificationOverrides(orgId), // COGS/OpEx fixes — applied everywhere
     ])
 
     const transactions = rows.map((r) => {
-      const c = classify({
+      const ledgerTxn = {
         source: r.source,
         type: r.type as 'CREDIT' | 'DEBIT',
         amount: r.amount,
         category: r.category,
         description: r.description,
         merchantName: r.merchantName,
-      })
+      }
+      const c = classify(ledgerTxn)
       const override = r.externalId ? catOverrides[r.externalId] : undefined
+      const classOverride = r.externalId ? classOverrides[r.externalId] : undefined
       const label =
         c.bucket === 'REVENUE' ? 'Revenue' :
         c.bucket === 'TRANSFER' ? 'Transfer' :
         (override ?? c.expenseCategory ?? 'Other')
+      // For expense rows, resolve COGS vs OpEx (user override > heuristic) so the
+      // Expenses table can show and let the user fix the gross-margin split.
+      const isExpense = c.bucket === 'EXPENSE'
+      const { expenseClass } = isExpense
+        ? classifyExpense(ledgerTxn, classOverride ?? null)
+        : { expenseClass: null }
       return {
         id: r.id,
         externalId: r.externalId,
         // Editable only for expenses; flag lets the UI mark user-fixed rows.
-        editable: c.bucket === 'EXPENSE',
+        editable: isExpense,
         overridden: !!override,
         date: r.date.toISOString(),
         description: r.description,
@@ -67,6 +77,9 @@ export async function GET(request: Request) {
         type: r.type === 'CREDIT' ? 'credit' : 'debit',
         source: r.source,
         category: label,
+        // Gross-margin split for expense rows (null for revenue/transfers).
+        expenseClass,
+        cogsOverridden: !!classOverride,
       }
     })
 

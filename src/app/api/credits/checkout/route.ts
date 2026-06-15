@@ -18,10 +18,15 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Billing is not configured (no STRIPE_SECRET_KEY).' }, { status: 503 })
   }
 
-  const { packId } = await request.json().catch(() => ({}))
+  const { packId, returnPath } = await request.json().catch(() => ({}))
   const origin = new URL(request.url).origin
   try {
-    const url = await createCreditCheckout(orgId, typeof packId === 'string' ? packId : 'reload', origin)
+    const url = await createCreditCheckout(
+      orgId,
+      typeof packId === 'string' ? packId : 'reload',
+      origin,
+      typeof returnPath === 'string' ? returnPath : '/dashboard',
+    )
     return Response.json({ url })
   } catch (err) {
     console.error('credits checkout failed:', err)
