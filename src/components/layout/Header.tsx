@@ -1,9 +1,12 @@
 'use client'
 
-import { Bell, Search, RefreshCw, Menu } from 'lucide-react'
-import { useState } from 'react'
+import { Search, RefreshCw, Menu } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSidebar } from './SidebarContext'
 import { useTheme } from './ThemeContext'
+import CommandPalette from './CommandPalette'
+import NotificationsBell from './NotificationsBell'
 
 interface HeaderProps {
   title?: string
@@ -12,12 +15,30 @@ interface HeaderProps {
 
 export default function Header({ title, subtitle }: HeaderProps) {
   const { toggle } = useSidebar()
+  const router = useRouter()
   const [refreshing, setRefreshing] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
 
+  // Cmd/Ctrl+K toggles the command palette anywhere in the dashboard.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearchOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Broadcast a refresh that every usePageData page (and the bell) listens for,
+  // and refresh server components. Brief spinner = honest feedback.
   function handleRefresh() {
     setRefreshing(true)
-    setTimeout(() => setRefreshing(false), 1500)
+    window.dispatchEvent(new CustomEvent('naviio:refresh'))
+    router.refresh()
+    setTimeout(() => setRefreshing(false), 900)
   }
 
   return (
@@ -58,23 +79,28 @@ export default function Header({ title, subtitle }: HeaderProps) {
           <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
         </button>
 
-        <button className="p-2 rounded-lg transition-colors relative" style={{ color: 'var(--color-text-secondary)' }} aria-label="Notifications">
-          <Bell size={15} />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#EF4444' }} />
-        </button>
+        <NotificationsBell />
 
         <button onClick={toggleTheme} className="p-2 rounded-lg transition-colors" style={{ color: 'var(--color-text-secondary)' }} aria-label="Toggle theme">
           {theme === 'light' ? '🌙' : '☀️'}
         </button>
 
-        {/* Search — icon only on mobile, full button on sm+ */}
+        {/* Search — opens the command palette (Cmd/Ctrl+K) */}
         <div className="pl-1 sm:pl-2 border-l" style={{ borderColor: 'var(--color-surface-border)' }}>
-          <button className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-lg text-sm transition-colors" style={{ backgroundColor: 'var(--color-surface-card)', color: 'var(--color-text-secondary)' }} aria-label="Search">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-white/5"
+            style={{ backgroundColor: 'var(--color-surface-card)', color: 'var(--color-text-secondary)' }}
+            aria-label="Search"
+          >
             <Search size={13} />
-            <span className="hidden sm:inline text-sm">Search...</span>
+            <span className="hidden sm:inline text-sm">Search</span>
+            <kbd className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded ml-1" style={{ border: '1px solid var(--color-surface-border)', color: 'var(--color-text-muted)' }}>⌘K</kbd>
           </button>
         </div>
       </div>
+
+      <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   )
 }
