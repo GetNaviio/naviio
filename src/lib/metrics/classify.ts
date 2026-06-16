@@ -65,9 +65,15 @@ function isTransfer(t: LedgerTxn): boolean {
   return TRANSFER_PFC.has(c)
 }
 
+// Credit-card / loan payments by description — banks (and the Plaid sandbox)
+// often omit PFC on these. Paying down a card or loan moves money to a liability:
+// it's financing, not a P&L expense, so exclude it (mirrors the LOAN_PAYMENTS PFC).
+const CAPITAL_DESC_RE = /\b(credit\s?card.*payment|cardmember|card\s?member|cc payment|payment\s*-?\s*thank\s?you|loan payment|mortgage)\b/i
+
 function isCapital(t: LedgerTxn): boolean {
   const c = (t.category ?? '').toUpperCase()
-  return CAPITAL_PFC.has(c)
+  if (CAPITAL_PFC.has(c)) return true
+  return CAPITAL_DESC_RE.test(`${t.description ?? ''} ${t.merchantName ?? ''}`)
 }
 
 // Map a Plaid PFC primary → a human-friendly expense category for the UI.
@@ -107,6 +113,30 @@ export function expenseLabel(category?: string | null): string {
   return EXPENSE_LABELS[category.toUpperCase()] ?? 'Other'
 }
 
+// Keyword fallback: when Plaid gives no PFC (legacy `category`, or none at all),
+// infer the category from the merchant/description so spend lands somewhere
+// meaningful instead of piling into 'Other'. First match wins; specific → generic.
+// Every label here is a member of USER_CATEGORIES so reclassify/COGS stay in sync.
+const KEYWORD_RULES: [RegExp, string][] = [
+  [/\b(gusto|adp|paychex|rippling|deel|justworks|payroll|upwork|fiverr|contractor)\b/i, 'Payroll & Contractors'],
+  [/\b(google ads|adwords|meta ads|facebook ads|fb ads|linkedin ads|tiktok ads|mailchimp|klaviyo|advertis|marketing)\b/i, 'Advertising & Marketing'],
+  [/\b(aws|amazon web services|gcp|google cloud|azure|vercel|netlify|heroku|digital ?ocean|cloudflare|github|gitlab|atlassian|jira|slack|zoom|notion|figma|adobe|openai|anthropic|twilio|sendgrid|datadog|sentry|stripe|quickbooks|intuit|salesforce|hubspot|zendesk|godaddy|namecheap|software|subscription)\b/i, 'Software & Services'],
+  [/\b(insurance|geico|allstate|state farm|progressive|nationwide|the hartford)\b/i, 'Insurance'],
+  [/\b(legal|attorney|law firm|accounting|accountant|\bcpa\b|consult|bookkeep|notary)\b/i, 'Professional Fees'],
+  [/\b(airlines?|united air|delta air|american air|southwest|jetblue|hotel|marriott|hilton|hyatt|airbnb|expedia|booking\.com|lodging|\bflight\b)\b/i, 'Travel'],
+  [/\b(uber|lyft|taxi|shell|chevron|exxon|mobil|gas station|fuel|parking|transit|metro|caltrain|amtrak|\btoll\b)\b/i, 'Transportation'],
+  [/\b(starbucks|mcdonald|chipotle|\bkfc\b|subway|doordash|grubhub|uber ?eats|restaurant|coffee|cafe|brewery|pizza|dunkin|panera|grocery|safeway|whole foods|trader joe)\b/i, 'Meals & Entertainment'],
+  [/\b(rent|wework|\blease\b|comcast|xfinity|verizon|at&t|t-mobile|pg&e|electric|water utility|internet|utility|landlord)\b/i, 'Rent & Utilities'],
+  [/\b(bank fee|service charge|overdraft|atm fee|wire fee|finance charge|\bnsf\b)\b/i, 'Bank Fees'],
+  [/\b(apple store|best buy|\bdell\b|lenovo|staples|office depot|equipment|hardware)\b/i, 'Equipment'],
+  [/\b(amazon|walmart|target|costco|ebay|etsy)\b/i, 'Merchandise'],
+]
+
+function keywordCategory(text: string): string | null {
+  for (const [re, cat] of KEYWORD_RULES) if (re.test(text)) return cat
+  return null
+}
+
 /**
  * Classify a single ledger row. Order matters: payouts and transfers are checked
  * before income/expense so already-counted money never inflates the P&L.
@@ -125,6 +155,12 @@ export function classify(t: LedgerTxn): Classification {
   // 4) Stripe charges and other money-in → revenue.
   if (t.type === 'CREDIT') return { bucket: 'REVENUE', excludedFromPnl: false }
 
-  // 5) Everything else going out → an operating expense.
-  return { bucket: 'EXPENSE', expenseCategory: expenseLabel(t.category), excludedFromPnl: false }
+  // 5) Everything else going out → an operating expense. Use Plaid's PFC label
+  //    when present; otherwise infer from the merchant/description so it doesn't
+  //    fall into 'Other'.
+  const label = expenseLabel(t.category)
+  const expenseCategory = label !== 'Other'
+    ? label
+    : (keywordCategory(`${t.description ?? ''} ${t.merchantName ?? ''}`) ?? 'Other')
+  return { bucket: 'EXPENSE', expenseCategory, excludedFromPnl: false }
 }
