@@ -10,6 +10,7 @@ import {
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { prisma } from '@/lib/prisma'
+import * as cache from '@/lib/cache'
 import { getTokenForUser } from './refreshToken'
 import { mapPlaidTransaction } from './plaid-map'
 
@@ -139,6 +140,11 @@ export async function exchangePublicToken(orgId: string, publicToken: string) {
     }
     await new Promise((r) => setTimeout(r, 2500))
   }
+
+  // Belt-and-braces: clear any pre-connect cached `hasData:false` so the
+  // dashboard reflects the new connection even if the first sync returned no
+  // transactions yet (a balance may already be available).
+  await cache.delPattern(`org:${orgId}:*`).catch(() => {})
 
   return { accessToken, itemId }
 }
@@ -302,6 +308,12 @@ export async function syncTransactions(
       data: { transactionCursor: cursor, lastSyncedAt: new Date(), status: 'CONNECTED' },
     }),
   ])
+
+  // New ledger data → every derived figure (metrics, P&L, model) is now stale.
+  // Bust the org's cache so the dashboard/onboarding poll sees data immediately,
+  // instead of a 15-min-cached `hasData:false` (the "stuck syncing until refresh"
+  // bug). Covers all sync paths: connect, manual sync, webhook, cron, refresh.
+  await cache.delPattern(`org:${orgId}:*`).catch(() => {})
 
   return { added: added.length, modified: modified.length, removed: removedIds.length }
 }
