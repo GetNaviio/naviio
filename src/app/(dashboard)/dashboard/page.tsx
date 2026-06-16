@@ -12,7 +12,7 @@ const NaviScore = dynamic(() => import('@/components/NaviScore'), { ssr: false, 
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import RefreshNowButton from '@/components/RefreshNowButton'
 import { formatCurrency } from '@/lib/utils'
-import { DollarSign, TrendingUp, Activity, Clock, BarChart3, Users, PieChart, Wallet, Sparkles, ArrowRight } from 'lucide-react'
+import { DollarSign, TrendingUp, TrendingDown, Activity, Clock, BarChart3, Users, PieChart, Wallet, Sparkles, ArrowRight } from 'lucide-react'
 import type { CashFlowDataPoint } from '@/types'
 
 interface Metrics {
@@ -144,6 +144,46 @@ export default function DashboardPage() {
     },
   ]
 
+  // ── Mobile (accountant-prioritized): hero = Runway, then 3 source-aware chips.
+  // Bank-only → Net Income; SaaS (Stripe) → MRR; Stripe-only → lead with MRR. We
+  // never render an empty MRR/customers card to a non-SaaS business.
+  const cashTrend = (() => {
+    if (series.length < 2) return null
+    const cur = series[series.length - 1].balance
+    const prev = series[series.length - 2].balance
+    if (!prev) return null
+    return ((cur - prev) / Math.abs(prev)) * 100
+  })()
+  const burnText = plaid ? (cf && cf.burnRate > 0 ? formatCurrency(cf.burnRate, true) : 'Cash positive') : '—'
+  const marginText = is?.netMargin != null ? `${is.netMargin.toFixed(1)}%` : '—'
+  type Chip = { label: string; value: string; color?: string }
+  let heroLabel = 'Cash balance'
+  let heroValue = '—'
+  let heroSub: string | null = null
+  const chips: Chip[] = []
+  if (plaid) {
+    if (runway != null) {
+      heroLabel = 'Runway'
+      heroValue = `${runway} mo`
+      heroSub = cash != null ? `Cash ${formatCurrency(cash, true)} · burn ${burnText}/mo` : null
+    } else {
+      heroLabel = 'Cash balance'
+      heroValue = cash != null ? formatCurrency(cash, true) : '—'
+      heroSub = 'Cash positive — not burning'
+    }
+    chips.push({ label: 'Burn', value: burnText })
+    if (stripe) chips.push({ label: 'MRR', value: formatCurrency(stripe.mrr, true) })
+    else chips.push({ label: 'Net income', value: is ? formatCurrency(is.netIncome, true) : '—', color: netPositive ? '#10B981' : '#EF4444' })
+    chips.push({ label: 'Margin', value: marginText })
+  } else if (stripe) {
+    heroLabel = 'MRR'
+    heroValue = formatCurrency(stripe.mrr, true)
+    heroSub = `ARR ${formatCurrency(stripe.arr, true)} · connect a bank for runway`
+    chips.push({ label: 'Customers', value: stripe.customers ? stripe.customers.total.toLocaleString() : '—' })
+    chips.push({ label: 'Churn', value: stripe.customers ? `${(stripe.churnRate * 100).toFixed(1)}%` : '—' })
+    chips.push({ label: 'Margin', value: marginText })
+  }
+
   return (
     <div>
       <Header title="Financial Overview" subtitle={lastUpdated ? `Last updated: ${lastUpdated}` : 'Last updated: —'} />
@@ -168,23 +208,26 @@ export default function DashboardPage() {
           />
         ) : (
           <>
-            {/* ── Mobile feed: hero balance + compact KPI chips + Navi prompt ── */}
+            {/* ── Mobile feed: hero (Runway) + 3 prioritized chips + Navi prompt ── */}
             <div className="lg:hidden space-y-4">
-              <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(150deg, var(--color-surface-card), var(--color-surface-bg))', border: '1px solid var(--color-surface-border)' }}>
-                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{cards[0].title}</p>
-                <p className="text-[2rem] leading-tight font-bold text-white mt-1">{cards[0].value}{cards[0].suffix ?? ''}</p>
-                {cards[0].subtitle && <p className="text-xs mt-1.5" style={{ color: '#00C49F' }}>{cards[0].subtitle}</p>}
+              <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(150deg, #12233F, #0E1A30)', border: '1px solid var(--color-surface-border)' }}>
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{heroLabel}</p>
+                <div className="flex items-end gap-2 mt-1">
+                  <p className="text-[2.25rem] leading-none font-bold text-white">{heroValue}</p>
+                  {plaid && cashTrend != null && (
+                    <span className="text-xs mb-1 flex items-center gap-0.5" style={{ color: cashTrend >= 0 ? '#00C49F' : '#F87171' }}>
+                      {cashTrend >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}{Math.abs(cashTrend).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+                {heroSub && <p className="text-xs mt-2" style={{ color: 'var(--color-text-secondary)' }}>{heroSub}</p>}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {cards.slice(1).map((c) => (
-                  <div key={c.title} className="rounded-xl p-3.5" style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}>
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: c.iconBg }}>{c.icon}</span>
-                      <span className="text-[11px] truncate" style={{ color: 'var(--color-text-muted)' }}>{c.title}</span>
-                    </div>
-                    <p className="text-lg font-semibold text-white mt-1.5">{c.value}{c.suffix ?? ''}</p>
-                    {c.subtitle && <p className="text-[11px] mt-0.5 truncate" style={{ color: 'var(--color-text-muted)' }}>{c.subtitle}</p>}
+              <div className="grid grid-cols-3 gap-2.5">
+                {chips.map((c) => (
+                  <div key={c.label} className="rounded-xl p-3" style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}>
+                    <p className="text-[10px] uppercase tracking-wide truncate" style={{ color: 'var(--color-text-muted)' }}>{c.label}</p>
+                    <p className="text-base font-semibold mt-1 truncate" style={{ color: c.color ?? '#fff' }}>{c.value}</p>
                   </div>
                 ))}
               </div>

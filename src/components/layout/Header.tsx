@@ -46,6 +46,7 @@ export default function Header({ title, subtitle }: HeaderProps) {
   }
 
   return (
+    <>
     <header
       className="sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b"
       style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}
@@ -54,9 +55,10 @@ export default function Header({ title, subtitle }: HeaderProps) {
         {/* Brand icon → account/utilities menu (mobile only; replaces the hamburger) */}
         <BrandMenu />
 
-        <div className="min-w-0">
+        {/* Title — inline on desktop; on mobile it drops below the bar (see below) */}
+        <div className="min-w-0 hidden lg:block">
           {title && <h1 className="text-base sm:text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{title}</h1>}
-          {subtitle && <p className="text-xs mt-0.5 truncate hidden sm:block" style={{ color: 'var(--color-text-secondary)' }}>{subtitle}</p>}
+          {subtitle && <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-text-secondary)' }}>{subtitle}</p>}
         </div>
       </div>
 
@@ -100,5 +102,15 @@ export default function Header({ title, subtitle }: HeaderProps) {
 
       <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
+
+    {/* Mobile: page title sits below the bar (scrolls away), so the sticky header
+        stays just the icon + bell. */}
+    {title && (
+      <div className="lg:hidden px-4 pt-4 pb-1">
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>{title}</h1>
+        {subtitle && <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>{subtitle}</p>}
+      </div>
+    )}
+    </>
   )
 }
