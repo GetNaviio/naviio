@@ -133,7 +133,14 @@ const KEYWORD_RULES: [RegExp, string][] = [
 ]
 
 function keywordCategory(text: string): string | null {
-  for (const [re, cat] of KEYWORD_RULES) if (re.test(text)) return cat
+  // Bank descriptors often jam tokens together with no space ("CreditGUSTO PAY",
+  // "POS DEBIT…"). Split camelCase and letter↔digit runs so the word-boundary
+  // rules still match the embedded merchant.
+  const normalized = text
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Za-z])(\d)/g, '$1 $2')
+    .replace(/(\d)([A-Za-z])/g, '$1 $2')
+  for (const [re, cat] of KEYWORD_RULES) if (re.test(normalized)) return cat
   return null
 }
 
