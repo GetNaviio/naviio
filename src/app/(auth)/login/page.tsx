@@ -66,7 +66,7 @@ function LoginForm() {
       <div className="flex-1 flex flex-col px-6 lg:px-8">
         {/* Mobile brand hero — sits in the top third, not floating in a void */}
         <div className="lg:hidden flex flex-col items-center justify-center pt-[12vh] pb-8">
-          <img src="/naviio-logo.png" alt="Naviio" className="w-auto" style={{ height: 96, maxWidth: 340 }} />
+          <img src="/naviio-logo.png" alt="Naviio" className="w-auto" style={{ height: 132, maxWidth: 400 }} />
         </div>
 
         {/* Spacer pushes the form into the thumb zone on mobile only */}

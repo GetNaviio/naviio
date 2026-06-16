@@ -56,8 +56,8 @@ export default function BrandMenu() {
         <img
           src={theme === 'light' ? '/naviio-icon-light.png' : '/naviio-icon-dark.png'}
           alt="Naviio menu"
-          width={34}
-          height={34}
+          width={40}
+          height={40}
           className="rounded-lg"
           onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo-icon.svg' }}
         />
