@@ -5,6 +5,7 @@ import { usePersistentState } from '@/hooks/usePersistentState'
 import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import MetricCard from '@/components/ui/MetricCard'
+import MobileHero from '@/components/dashboard/MobileHero'
 import ConnectPrompt from '@/components/ConnectPrompt'
 import { formatCurrency } from '@/lib/utils'
 import { projectModel, projectionTotals } from '@/lib/model/project'
@@ -188,7 +189,18 @@ export default function ModelPage() {
               {/* 1 · FINANCIAL ANALYSIS */}
               {tab === 'analysis' && stmt && (
                 <>
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Mobile: hero (Gross Margin) + 3 chips. Desktop keeps the grid. */}
+                  <MobileHero
+                    label="Gross Margin"
+                    value={pct(stmt.grossMargin)}
+                    sub={`Operating ${pct(stmt.operatingMargin)} · breakeven ${breakeven != null ? formatCurrency(breakeven, true) : '—'}`}
+                    chips={[
+                      { label: 'Op. Margin', value: pct(stmt.operatingMargin), color: '#3B82F6' },
+                      { label: 'Breakeven', value: breakeven != null ? formatCurrency(breakeven, true) : '—', color: '#F59E0B' },
+                      { label: 'Safety', value: pct(marginOfSafety), color: '#10B981' },
+                    ]}
+                  />
+                  <div className="hidden lg:grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <MetricCard title="Gross Margin" value={pct(stmt.grossMargin)} icon={<Percent size={16} style={{ color: '#14B8A6' }} />} iconBg="rgba(20,184,166,0.15)" tooltip="Gross profit ÷ revenue." />
                     <MetricCard title="Operating Margin" value={pct(stmt.operatingMargin)} icon={<PieChart size={16} style={{ color: '#3B82F6' }} />} iconBg="rgba(59,130,246,0.15)" tooltip="Operating income ÷ revenue." />
                     <MetricCard title="Breakeven Revenue" value={breakeven != null ? formatCurrency(breakeven, true) : '—'} icon={<Target size={16} style={{ color: '#F59E0B' }} />} iconBg="rgba(245,158,11,0.15)" tooltip="OpEx ÷ gross margin — revenue needed to cover costs (OpEx treated as fixed)." />

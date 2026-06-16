@@ -6,9 +6,10 @@
 
 ## Decision
 Extended the dashboard's "one hero + chips" mobile pattern (decision 0045) to the
-four core financial pages via a shared `MobileHero` component. On a phone each page
-now leads with its single most-important number and three supporting chips; the
-desktop metric-card grids are unchanged (`hidden lg:grid`).
+core financial pages via a shared `MobileHero` component. On a phone each page now
+leads with its single most-important number and three supporting chips; the desktop
+metric-card grids are unchanged (`hidden lg:grid`). Applied to P&L, Cash Flow,
+Revenue, Expenses, plus KPIs, Forecast, and the Model's analysis tab.
 
 ## Per-page hero
 - **P&L** — hero **Net Income** (YoY trend arrow); sub = income + margin; chips:

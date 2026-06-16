@@ -4,6 +4,7 @@ import { useCallback, type ReactNode } from 'react'
 import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import MetricCard from '@/components/ui/MetricCard'
+import MobileHero from '@/components/dashboard/MobileHero'
 import ConnectPrompt from '@/components/ConnectPrompt'
 import { SkeletonGrid, ErrorState } from '@/components/ui/PageState'
 import { usePageData, fetchJson } from '@/hooks/usePageData'
@@ -105,9 +106,18 @@ export default function KPIsPage() {
         ) : (
           <>
             {cards.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {cards.map((c) => <MetricCard key={c.title} title={c.title} value={c.value} suffix={c.suffix} subtitle={c.subtitle} icon={c.icon} iconBg={c.iconBg} tooltip={c.tooltip} />)}
-              </div>
+              <>
+                {/* Mobile: lead KPI as hero + next three as chips. Desktop keeps the grid. */}
+                <MobileHero
+                  label={cards[0].title}
+                  value={`${cards[0].value}${cards[0].suffix ?? ''}`}
+                  sub={cards[0].subtitle}
+                  chips={cards.slice(1, 4).map((c) => ({ label: c.title, value: `${c.value}${c.suffix ?? ''}` }))}
+                />
+                <div className="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {cards.map((c) => <MetricCard key={c.title} title={c.title} value={c.value} suffix={c.suffix} subtitle={c.subtitle} icon={c.icon} iconBg={c.iconBg} tooltip={c.tooltip} />)}
+                </div>
+              </>
             ) : (
               <Card title="KPIs">
                 <p className="text-sm py-6 text-center" style={{ color: 'var(--color-text-muted)' }}>No KPI inputs yet — connect Stripe for subscription metrics, and transactions will drive your margins as they sync.</p>

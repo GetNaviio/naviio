@@ -5,6 +5,7 @@ import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import NaviBadge from '@/components/ui/NaviBadge'
 import MetricCard from '@/components/ui/MetricCard'
+import MobileHero from '@/components/dashboard/MobileHero'
 import dynamic from 'next/dynamic'
 import ChartSkeleton from '@/components/charts/ChartSkeleton'
 // Lazy-loaded — pulls in recharts; kept out of the initial bundle.
@@ -219,8 +220,21 @@ export default function ForecastPage() {
           </div>
         </div>
 
+        {/* Mobile: hero (Projected MRR, base) + 3 chips. Desktop keeps the grid. */}
+        <MobileHero
+          label={`Projected MRR · ${horizon}mo base`}
+          value={formatCurrency(summary.base.mrr, true)}
+          trend={currentMrr ? ((summary.base.mrr - currentMrr) / currentMrr) * 100 : null}
+          sub={`ARR ${formatCurrency(summary.base.arr, true)} · ${summary.base.runway > 90 ? '90+' : summary.base.runway} mo runway`}
+          chips={[
+            { label: 'ARR (base)', value: formatCurrency(summary.base.arr, true), color: '#10B981' },
+            { label: 'Runway', value: `${summary.base.runway > 90 ? '90+' : summary.base.runway} mo`, color: '#8B5CF6' },
+            { label: 'Bear MRR', value: formatCurrency(summary.bear.mrr, true), color: '#EF4444' },
+          ]}
+        />
+
         {/* Summary metric cards — base scenario */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             title={`Projected MRR (Base, ${horizon}mo)`}
             value={formatCurrency(summary.base.mrr, true)}
