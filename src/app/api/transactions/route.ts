@@ -1,6 +1,6 @@
 import { requireAuth, getDefaultOrgId } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { classify, resolveVendorCategories, vendorCategoryOf, vendorKey } from '@/lib/metrics/classify'
+import { classify, resolveVendorCategories, resolveTxnCategory, vendorKey } from '@/lib/metrics/classify'
 import { classifyExpense } from '@/lib/model/cogs'
 import { loadPrimaryLedger, categoryOverrides, classificationOverrides } from '@/lib/metrics/ledger'
 
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     ])
 
     // One category per vendor across the whole ledger — matches the metric engine.
-    const vendorCat = resolveVendorCategories(fullLedger, catOverrides)
+    const vendorCat = resolveVendorCategories(fullLedger, catOverrides.byVendor)
 
     const transactions = rows.map((r) => {
       const ledgerTxn = {
@@ -54,6 +54,7 @@ export async function GET(request: Request) {
         category: r.category,
         description: r.description,
         merchantName: r.merchantName,
+        externalId: r.externalId,
       }
       const c = classify(ledgerTxn)
       const isExpense = c.bucket === 'EXPENSE'
@@ -61,9 +62,12 @@ export async function GET(request: Request) {
       const label =
         c.bucket === 'REVENUE' ? 'Revenue' :
         c.bucket === 'TRANSFER' ? 'Transfer' :
-        vendorCategoryOf(ledgerTxn, vendorCat)
-      // Vendor has a user override when its resolved label came from the override map.
-      const overridden = isExpense && !!catOverrides[vendorKey(ledgerTxn)]
+        resolveTxnCategory(ledgerTxn, vendorCat, catOverrides.byTxn)
+      // Marked as user-fixed when a per-transaction OR vendor override applies.
+      const overridden = isExpense && (
+        (!!r.externalId && !!catOverrides.byTxn[r.externalId]) ||
+        !!catOverrides.byVendor[vendorKey(ledgerTxn)]
+      )
       // For expense rows, resolve COGS vs OpEx (user override > heuristic) so the
       // Expenses table can show and let the user fix the gross-margin split.
       const { expenseClass } = isExpense

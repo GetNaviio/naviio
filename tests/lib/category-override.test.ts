@@ -23,26 +23,41 @@ const LEDGER = [
   txn('t3', 200, 'RENT_AND_UTILITIES', 'WeWork'),     // → Rent & Utilities
 ]
 
-describe('incomeStatement with category overrides', () => {
-  it('moves the amount between categories; totals unchanged', () => {
-    const base = incomeStatement(LEDGER)
-    const fixed = incomeStatement(LEDGER, undefined, undefined, { t1: 'Advertising & Marketing' })
+const cat = (st: { expensesByCategory: { category: string; amount: number }[] }, name: string) =>
+  st.expensesByCategory.find((c) => c.category === name)?.amount ?? 0
 
+describe('incomeStatement with category overrides', () => {
+  it('a per-transaction override moves just that row; totals unchanged', () => {
+    const base = incomeStatement(LEDGER)
+    const fixed = incomeStatement(LEDGER, undefined, undefined, { byVendor: {}, byTxn: { t1: 'Advertising & Marketing' } })
     expect(fixed.totalExpenses).toBe(base.totalExpenses)
-    const cat = (st: typeof base, name: string) => st.expensesByCategory.find((c) => c.category === name)?.amount ?? 0
-    expect(cat(fixed, 'Advertising & Marketing')).toBe(100)
-    expect(cat(fixed, 'Software & Services')).toBe(50) // only t2 remains
+    expect(cat(fixed, 'Advertising & Marketing')).toBe(100) // t1 (AWS)
+    expect(cat(fixed, 'Software & Services')).toBe(50) // only t2 (Figma) remains
     expect(cat(fixed, 'Rent & Utilities')).toBe(200) // untouched
+  })
+
+  it('a vendor override moves every transaction of that vendor', () => {
+    const L = [txn('a1', 100, 'GENERAL_SERVICES', 'AWS'), txn('a2', 40, 'GENERAL_SERVICES', 'AWS'), txn('t3', 200, 'RENT_AND_UTILITIES', 'WeWork')]
+    const fixed = incomeStatement(L, undefined, undefined, { byVendor: { aws: 'Advertising & Marketing' }, byTxn: {} })
+    expect(cat(fixed, 'Advertising & Marketing')).toBe(140) // both AWS rows
+    expect(cat(fixed, 'Software & Services')).toBe(0)
+  })
+
+  it('a per-transaction override wins over the vendor default', () => {
+    const L = [txn('a1', 100, 'GENERAL_SERVICES', 'AWS'), txn('a2', 40, 'GENERAL_SERVICES', 'AWS')]
+    const fixed = incomeStatement(L, undefined, undefined, { byVendor: { aws: 'Advertising & Marketing' }, byTxn: { a2: 'Equipment' } })
+    expect(cat(fixed, 'Advertising & Marketing')).toBe(100) // a1 follows vendor default
+    expect(cat(fixed, 'Equipment')).toBe(40) // a2 pinned
   })
 
   it('an override for an id not in the ledger changes nothing', () => {
     const base = incomeStatement(LEDGER)
-    const noop = incomeStatement(LEDGER, undefined, undefined, { ghost: 'Travel' })
+    const noop = incomeStatement(LEDGER, undefined, undefined, { byVendor: {}, byTxn: { ghost: 'Travel' } })
     expect(noop).toEqual(base)
   })
 
   it('category partition still sums to the total after overrides', () => {
-    const fixed = incomeStatement(LEDGER, undefined, undefined, { t1: 'Equipment', t3: 'Insurance' })
+    const fixed = incomeStatement(LEDGER, undefined, undefined, { byVendor: {}, byTxn: { t1: 'Equipment', t3: 'Insurance' } })
     const sum = fixed.expensesByCategory.reduce((s, c) => s + c.amount, 0)
     expect(Math.round(sum * 100) / 100).toBe(fixed.totalExpenses)
   })

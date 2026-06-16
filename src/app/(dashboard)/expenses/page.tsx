@@ -67,6 +67,8 @@ export default function ExpensesPage() {
   // refreshes EVERYTHING after a reclassification (cards, chart, list) so the
   // fix visibly moves the numbers everywhere at once.
   const [editing, setEditing] = useState<string | null>(null)
+  // A chosen category awaiting the "all of this vendor vs. just this one" choice.
+  const [pendingReclass, setPendingReclass] = useState<{ tx: Transaction; category: string } | null>(null)
   // Which row's COGS/OpEx tag editor is open (separate from the category editor).
   const [cogsEditing, setCogsEditing] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -159,8 +161,11 @@ export default function ExpensesPage() {
   const filteredTx = activeCategory ? txns.filter((t) => t.category === activeCategory) : txns
 
   // Reclassify (or reset) a transaction's category — the fix-the-AI write path.
-  async function reclassify(tx: Transaction, category: string | null) {
+  // applyToVendor=true re-categorizes every transaction from this vendor (the
+  // default); false pins just this one (wins over the vendor default).
+  async function reclassify(tx: Transaction, category: string | null, applyToVendor = true) {
     setEditing(null)
+    setPendingReclass(null)
     if (!tx.externalId) return
     try {
       const res = category === null
@@ -168,7 +173,7 @@ export default function ExpensesPage() {
         : await fetch('/api/transactions/classify', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ externalId: tx.externalId, category }),
+            body: JSON.stringify({ externalId: tx.externalId, category, applyToVendor }),
           })
       if (res.ok) setReloadKey((k) => k + 1) // one fix → every view updates
     } catch { /* row keeps its old label; user can retry */ }
@@ -391,11 +396,30 @@ export default function ExpensesPage() {
                               {tx.merchantName && <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{tx.merchantName}</p>}
                             </td>
                             <td className="px-4 py-3">
-                              {editing === tx.id ? (
+                              {pendingReclass?.tx.id === tx.id ? (
+                                <div className="flex flex-col gap-1.5">
+                                  <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                                    Set to <span className="font-semibold" style={{ color: 'var(--color-text-secondary)' }}>{pendingReclass.category}</span> for:
+                                  </span>
+                                  <div className="flex gap-1.5">
+                                    <button onClick={() => reclassify(tx, pendingReclass.category, true)} className="px-2 py-1 rounded text-[11px] font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#3B82F6', border: '1px solid #3B82F6' }}>
+                                      All “{(tx.merchantName || tx.description || 'vendor').slice(0, 20)}”
+                                    </button>
+                                    <button onClick={() => reclassify(tx, pendingReclass.category, false)} className="px-2 py-1 rounded text-[11px]" style={{ color: 'var(--color-text-secondary)', border: '1px solid var(--color-surface-border)' }}>
+                                      Just this one
+                                    </button>
+                                  </div>
+                                  <button onClick={() => setPendingReclass(null)} className="text-[10px] text-left" style={{ color: 'var(--color-text-muted)' }}>Cancel</button>
+                                </div>
+                              ) : editing === tx.id ? (
                                 <select
                                   autoFocus
                                   defaultValue={tx.category}
-                                  onChange={(e) => reclassify(tx, e.target.value === '__auto__' ? null : e.target.value)}
+                                  onChange={(e) => {
+                                    const v = e.target.value
+                                    if (v === '__auto__') reclassify(tx, null)
+                                    else { setPendingReclass({ tx, category: v }); setEditing(null) }
+                                  }}
                                   onBlur={() => setEditing(null)}
                                   className="px-1.5 py-1 rounded text-xs outline-none cursor-pointer"
                                   style={{ backgroundColor: 'var(--color-surface-input)', color: 'var(--color-text-primary)', border: '1px solid #3B82F6' }}

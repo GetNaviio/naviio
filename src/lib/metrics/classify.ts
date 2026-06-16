@@ -231,3 +231,29 @@ export function resolveVendorCategories(
 export function vendorCategoryOf(t: LedgerTxn, resolved: Map<string, string>): string {
   return resolved.get(vendorKey(t)) ?? 'Other'
 }
+
+/** User category overrides, split by scope. byTxn wins over byVendor (a single
+ *  transaction can differ from its vendor's default — e.g. a laptop bought at a
+ *  vendor that's usually office supplies). */
+export interface CategoryOverrides {
+  byVendor: Record<string, string> // vendorKey → label (applies to the whole vendor)
+  byTxn: Record<string, string>    // externalId → label (this transaction only)
+}
+
+// A vendor-scoped category override is stored in TxnClassification.externalId as
+// `vendor:<vendorKey>` (no schema change vs a per-transaction override, which uses
+// the real externalId). The read side splits them back into byVendor / byTxn.
+export const VENDOR_OVERRIDE_PREFIX = 'vendor:'
+
+/**
+ * Final category for one transaction, applying the full precedence:
+ *   per-transaction override > vendor default (resolved map) > 'Other'.
+ */
+export function resolveTxnCategory(
+  t: LedgerTxn & { externalId?: string | null },
+  vendorResolved: Map<string, string>,
+  txnOverrides: Record<string, string> = {},
+): string {
+  if (t.externalId && txnOverrides[t.externalId]) return txnOverrides[t.externalId]
+  return vendorResolved.get(vendorKey(t)) ?? 'Other'
+}

@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type { IntegrationProvider } from '@prisma/client'
 import type { DatedLedgerTxn } from './compute'
-import { vendorKey } from './classify'
+import { VENDOR_OVERRIDE_PREFIX, type CategoryOverrides } from './classify'
 
 /**
  * Load an org's normalized transaction ledger (Plaid + Stripe + any synced
@@ -57,27 +57,22 @@ export async function classificationOverrides(orgId: string): Promise<Record<str
  * (income statement, P&L drill-down, transactions list) so one fix moves the
  * transaction in every view at once.
  */
-export async function categoryOverrides(orgId: string): Promise<Record<string, string>> {
+export async function categoryOverrides(orgId: string): Promise<CategoryOverrides> {
   const rows = await prisma.txnClassification.findMany({
     where: { orgId, category: { not: null } },
     select: { externalId: true, category: true },
-    orderBy: { updatedAt: 'asc' }, // most-recent fix wins per vendor (applied last)
+    orderBy: { updatedAt: 'asc' }, // most-recent fix wins (applied last)
   })
-  if (rows.length === 0) return {}
-  // Project each per-transaction override onto its VENDOR, so a single fix
-  // applies to every transaction from that vendor — past and future. Keyed by
-  // vendorKey (not externalId); consumers look up via vendorKey(txn).
-  const txns = await prisma.transaction.findMany({
-    where: { orgId, externalId: { in: rows.map((r) => r.externalId) } },
-    select: { externalId: true, merchantName: true, description: true },
-  })
-  const vendorByExt = new Map(txns.map((t) => [t.externalId, vendorKey(t)]))
-  const out: Record<string, string> = {}
+  const byVendor: Record<string, string> = {}
+  const byTxn: Record<string, string> = {}
   for (const r of rows) {
-    const vk = vendorByExt.get(r.externalId)
-    if (vk) out[vk] = r.category!
+    if (r.externalId.startsWith(VENDOR_OVERRIDE_PREFIX)) {
+      byVendor[r.externalId.slice(VENDOR_OVERRIDE_PREFIX.length)] = r.category!
+    } else {
+      byTxn[r.externalId] = r.category!
+    }
   }
-  return out
+  return { byVendor, byTxn }
 }
 
 /** UTC start-of-year — stable YTD boundary regardless of server timezone. */
