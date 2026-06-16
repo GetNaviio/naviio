@@ -102,12 +102,12 @@ html.light ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
   --color-danger: #dc2626;
   --color-info: #0047FF;
 
-  /* Light-mode hero: brand blue with white text (reads as an accent, not a
-     stray dark card). */
-  --hero-grad: linear-gradient(150deg, #2F6BFF, #1E5BE6);
-  --hero-fg: #ffffff;
-  --hero-fg-muted: rgba(255, 255, 255, 0.78);
-  --hero-fg-sub: rgba(255, 255, 255, 0.92);
+  /* Light-mode hero: a plain white card like the other metric cards, with the
+     normal dark text colors. */
+  --hero-grad: var(--color-surface-card);
+  --hero-fg: var(--color-text-primary);
+  --hero-fg-muted: var(--color-text-muted);
+  --hero-fg-sub: var(--color-text-secondary);
 
   --font-sans: var(--font-inter);
   --font-heading: var(--font-sora);

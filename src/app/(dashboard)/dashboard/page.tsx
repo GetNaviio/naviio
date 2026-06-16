@@ -215,7 +215,7 @@ export default function DashboardPage() {
                 <div className="flex items-end gap-2 mt-1">
                   <p className="text-[2.25rem] leading-none font-bold" style={{ color: 'var(--hero-fg)' }}>{heroValue}</p>
                   {plaid && cashTrend != null && (
-                    <span className="text-xs mb-1 flex items-center gap-0.5" style={{ color: cashTrend >= 0 ? '#9EFCE4' : '#FFC4C4' }}>
+                    <span className="text-xs mb-1 flex items-center gap-0.5" style={{ color: cashTrend >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
                       {cashTrend >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}{Math.abs(cashTrend).toFixed(0)}%
                     </span>
                   )}
