@@ -30,7 +30,7 @@ function LoginForm() {
     null
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: '#060D1F' }}>
+    <div className="h-[100svh] lg:min-h-screen lg:h-auto overflow-hidden lg:overflow-visible flex" style={{ backgroundColor: '#060D1F' }}>
       {/* Left — desktop branding (unchanged) */}
       <div className="hidden lg:flex flex-1 flex-col justify-between p-12" style={{ backgroundColor: 'var(--color-surface-card)', borderRight: '1px solid var(--color-surface-border)' }}>
         <div>
@@ -63,20 +63,19 @@ function LoginForm() {
       </div>
 
       {/* Right — form side (mobile-first) */}
-      <div className="flex-1 flex flex-col px-6 lg:px-8">
-        {/* Mobile brand hero — sits in the top third, not floating in a void */}
-        <div className="lg:hidden flex flex-col items-center justify-center pt-[12vh] pb-8">
-          <img src="/naviio-logo.png" alt="Naviio" className="w-auto" style={{ height: 132, maxWidth: 400 }} />
+      <div className="flex-1 flex flex-col min-h-0 px-6 lg:px-8">
+        {/* Mobile brand hero — flexes to fill the space above the form and centers
+            the logo; the logo height clamps to the viewport so it never forces a
+            scroll on shorter phones. */}
+        <div className="lg:hidden flex-1 min-h-0 flex flex-col items-center justify-center pt-[5vh] pb-2">
+          <img src="/naviio-logo.png" alt="Naviio" className="w-auto max-h-full" style={{ height: 'clamp(72px, 14vh, 132px)', maxWidth: 400 }} />
         </div>
 
-        {/* Spacer pushes the form into the thumb zone on mobile only */}
-        <div className="flex-1 lg:hidden" />
-
         {/* Form block — bottom-anchored on mobile, centered on desktop */}
-        <div className="pb-10 lg:pb-0 lg:flex-1 lg:flex lg:items-center lg:justify-center">
+        <div className="shrink-0 pb-[max(2rem,env(safe-area-inset-bottom))] lg:pb-0 lg:flex-1 lg:flex lg:items-center lg:justify-center">
           <div className="w-full max-w-sm mx-auto">
             <h2 className="text-3xl lg:text-2xl font-bold text-white mb-1">Sign in</h2>
-            <p className="text-sm mb-7 lg:mb-8" style={{ color: 'var(--color-text-muted)' }}>
+            <p className="text-sm mb-5 lg:mb-8" style={{ color: 'var(--color-text-muted)' }}>
               Don&apos;t have an account?{' '}
               <Link href="/register" className="font-medium" style={{ color: '#4D8BFF' }}>Get started free</Link>
             </p>
@@ -111,7 +110,7 @@ function LoginForm() {
               </button>
             </form>
 
-            <div className="flex items-center gap-3 my-5">
+            <div className="flex items-center gap-3 my-4 lg:my-5">
               <div className="h-px flex-1" style={{ backgroundColor: 'var(--color-surface-border)' }} />
               <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>or</span>
               <div className="h-px flex-1" style={{ backgroundColor: 'var(--color-surface-border)' }} />
