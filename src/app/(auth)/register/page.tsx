@@ -56,7 +56,7 @@ function RegisterForm() {
       <div className="w-full max-w-sm mx-auto">
         {/* Brand hero */}
         <div className="flex justify-center lg:justify-start mb-8">
-          <img src="/naviio-logo.png" alt="Naviio" className="w-auto" style={{ height: 52, maxWidth: 240 }} />
+          <img src="/naviio-logo.png" alt="Naviio" className="w-auto" style={{ height: 80, maxWidth: 300 }} />
         </div>
 
         <h2 className="text-3xl lg:text-2xl font-bold text-white mb-1">Create your account</h2>
