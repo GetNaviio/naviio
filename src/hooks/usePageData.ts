@@ -31,10 +31,20 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-/** GET a JSON endpoint; throws on network error or non-2xx. */
+/** Error carrying the HTTP status so callers can branch (e.g. 401 → re-login). */
+export class HttpError extends Error {
+  status: number
+  constructor(url: string, status: number) {
+    super(`${url} responded ${status}`)
+    this.name = 'HttpError'
+    this.status = status
+  }
+}
+
+/** GET a JSON endpoint; throws (with status) on network error or non-2xx. */
 export async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal })
-  if (!res.ok) throw new Error(`${url} responded ${res.status}`)
+  if (!res.ok) throw new HttpError(url, res.status)
   return res.json() as Promise<T>
 }
 
@@ -69,6 +79,16 @@ export function usePageData<T>(loader: (signal: AbortSignal) => Promise<T>): Pag
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return
+        // Session expired/invalid (the cookie outlived the JWT, or it was
+        // revoked): every data call 401s, so don't paint a scary error on each
+        // tab — bounce to login and come back to where they were.
+        if (err instanceof HttpError && (err.status === 401 || err.status === 403)) {
+          if (typeof window !== 'undefined') {
+            const next = encodeURIComponent(window.location.pathname + window.location.search)
+            window.location.replace(`/login?next=${next}`)
+          }
+          return
+        }
         setError(err instanceof Error ? err.message : 'Something went wrong')
         setLoading(false)
       })

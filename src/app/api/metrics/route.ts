@@ -39,7 +39,15 @@ export async function GET() {
     const is = incomeStatement(ledger, startOfYearUTC(), undefined, catOverrides) // YTD income statement
     const cf = cashFlow(ledger)                            // trailing cash flow
     const marketing = { thisMonth: marketingSpend(ledger, monthsAgoUTC(0)) }
-    const cashBalance = sources.plaid ? await getCashBalance(orgId).catch(() => null) : null
+    // Cap the live Plaid balance call so a slow provider can't time out the whole
+    // endpoint (which would surface as an error on every dashboard tab). On
+    // timeout we fall back to null — the page still renders from the ledger.
+    const cashBalance = sources.plaid
+      ? await Promise.race([
+          getCashBalance(orgId).catch(() => null),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 7000)),
+        ])
+      : null
     const runway = cashBalance != null && cf.burnRate > 0 ? runwayMonths(cashBalance, cf.burnRate) : null
 
     const payload = {
