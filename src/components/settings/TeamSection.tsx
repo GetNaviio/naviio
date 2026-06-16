@@ -39,6 +39,13 @@ export default function TeamSection() {
   const load = useCallback(async () => {
     try {
       const [mRes, oRes] = await Promise.all([fetch('/api/org/members'), fetch('/api/org/switch')])
+      // Session expired/invalid: bounce to login (and back) rather than showing a
+      // misleading "run the migration" error for what is really an auth lapse.
+      if (mRes.status === 401 || mRes.status === 403) {
+        const next = encodeURIComponent(window.location.pathname + window.location.search)
+        window.location.replace(`/login?next=${next}`)
+        return
+      }
       if (mRes.ok) {
         const m = await mRes.json()
         setMembers(m.members ?? [])
@@ -124,8 +131,8 @@ export default function TeamSection() {
           )}
           {status === 'error' && (
             <p className="text-sm py-1" style={{ color: '#F59E0B' }}>
-              Couldn&apos;t load the team roster. If you just updated the app, run the pending
-              database migration and restart the server, then refresh this page.
+              Couldn&apos;t load the team roster. Please refresh the page — if it keeps
+              happening, try signing out and back in.
             </p>
           )}
           {/* Roster */}
