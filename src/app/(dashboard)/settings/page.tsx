@@ -185,18 +185,20 @@ export default function SettingsPage() {
       <Header title="Settings" subtitle="Organization, billing, sharing, and security" />
 
       <div className="p-4 sm:p-6">
-        {/* ── Sub-navigation ── */}
-        <nav className="flex gap-1 mb-6 overflow-x-auto border-b" style={{ borderColor: 'var(--color-surface-border)' }}>
+        {/* ── Sub-navigation ──
+            Mobile: tabs wrap into pills so every tab stays visible (no sideways
+            scroll that can hide Security/Account). Desktop: classic underline row. */}
+        <nav className="flex flex-wrap gap-2 sm:gap-1 mb-6 sm:flex-nowrap sm:overflow-x-auto sm:border-b" style={{ borderColor: 'var(--color-surface-border)' }}>
           {TABS.map(({ id, label, icon: Icon }) => {
             const active = tab === id
             return (
               <button
                 key={id}
                 onClick={() => selectTab(id)}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors"
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-medium whitespace-nowrap rounded-lg sm:rounded-none border sm:border-0 sm:border-b-2 transition-colors ${active ? 'bg-[rgba(59,130,246,0.12)] sm:bg-transparent' : 'bg-transparent'}`}
                 style={{
                   color: active ? 'var(--color-info)' : 'var(--color-text-secondary)',
-                  borderBottom: `2px solid ${active ? 'var(--color-info)' : 'transparent'}`,
+                  borderColor: active ? 'var(--color-info)' : 'transparent',
                   marginBottom: -1,
                 }}
               >
