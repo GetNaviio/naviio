@@ -255,5 +255,11 @@ export function resolveTxnCategory(
   txnOverrides: Record<string, string> = {},
 ): string {
   if (t.externalId && txnOverrides[t.externalId]) return txnOverrides[t.externalId]
-  return vendorResolved.get(vendorKey(t)) ?? 'Other'
+  const vk = vendorKey(t)
+  if (vk) {
+    const resolved = vendorResolved.get(vk)
+    if (resolved) return resolved
+  }
+  // No vendor identity (no merchant/description) → this transaction's own label.
+  return classify(t).expenseCategory ?? 'Other'
 }
