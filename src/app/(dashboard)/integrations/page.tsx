@@ -277,14 +277,14 @@ export default function IntegrationsPage() {
         </div>
       )}
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Status bar */}
-        <div className="flex items-center gap-4 p-4 rounded-xl" style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}>
+        <div className="flex items-center gap-3 sm:gap-4 p-4 rounded-xl" style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}>
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <div className="w-2.5 h-2.5 rounded-full animate-pulse flex-shrink-0" style={{ backgroundColor: '#10B981' }} />
             <span className="text-sm text-white font-medium truncate">{connected} of {total} core integrations connected</span>
           </div>
-          <div className="h-1.5 w-32 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--color-surface-border)' }}>
+          <div className="hidden sm:block h-1.5 w-32 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--color-surface-border)' }}>
             <div className="h-full rounded-full transition-all" style={{ width: `${total > 0 ? (connected / total) * 100 : 0}%`, backgroundColor: '#10B981' }} />
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
@@ -328,7 +328,7 @@ export default function IntegrationsPage() {
         {/* Reconnect prompt — Plaid item needs an update-mode re-link */}
         {reconnect['plaid'] && (
           <div
-            className="p-4 rounded-xl flex items-center gap-3"
+            className="p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center gap-3"
             style={{ backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)' }}
           >
             <AlertTriangle size={18} style={{ color: '#F59E0B', flexShrink: 0 }} />
@@ -352,7 +352,7 @@ export default function IntegrationsPage() {
         {/* New-accounts prompt — bank exposed accounts the user can add */}
         {newAccounts['plaid'] && (
           <div
-            className="p-4 rounded-xl flex items-center gap-3"
+            className="p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center gap-3"
             style={{ backgroundColor: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.35)' }}
           >
             <PlusCircle size={18} style={{ color: '#3B82F6', flexShrink: 0 }} />

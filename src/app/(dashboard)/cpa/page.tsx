@@ -80,10 +80,10 @@ export default function CPAPage() {
                   <Building2 size={12} /> {e.label}
                 </button>
               ))}
-              <div className="flex items-center gap-2 ml-auto">
-                <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Effective rate</span>
-                <input type="range" min={0} max={50} value={Math.round(rate * 100)} onChange={(e) => setRate(Number(e.target.value) / 100)} className="w-32" aria-label="Effective tax rate" />
-                <span className="text-sm font-semibold text-white w-10">{Math.round(rate * 100)}%</span>
+              <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+                <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>Effective rate</span>
+                <input type="range" min={0} max={50} value={Math.round(rate * 100)} onChange={(e) => setRate(Number(e.target.value) / 100)} className="flex-1 sm:flex-none sm:w-32" aria-label="Effective tax rate" />
+                <span className="text-sm font-semibold text-white w-10 flex-shrink-0">{Math.round(rate * 100)}%</span>
               </div>
             </div>
 

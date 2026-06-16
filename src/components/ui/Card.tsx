@@ -24,10 +24,10 @@ export default function Card({ children, title, subtitle, tooltip, action, badge
     >
       {(title || action) && (
         <div
-          className="flex items-center justify-between px-5 py-4 border-b"
+          className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between px-5 py-4 border-b"
           style={{ borderColor: 'var(--color-surface-border)' }}
         >
-          <div>
+          <div className="min-w-0">
             {title && (
               <h3 className="flex items-center gap-1.5 flex-wrap text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                 {title}
@@ -37,7 +37,7 @@ export default function Card({ children, title, subtitle, tooltip, action, badge
             )}
             {subtitle && <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{subtitle}</p>}
           </div>
-          {action && <div>{action}</div>}
+          {action && <div className="flex-shrink-0 max-w-full">{action}</div>}
         </div>
       )}
       <div className={padding ? 'p-5' : ''}>{children}</div>
