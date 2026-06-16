@@ -157,26 +157,25 @@ export default function PlaidLinkButton({
   }
 
   return (
-    // Message sits to the LEFT of the CTA on the same line; the button keeps its
-    // position on the right. Messages are width-capped so they wrap instead of
-    // pushing the button.
-    <div className="flex items-center justify-end gap-2">
+    // Messages stack ABOVE the button so the CTA never resizes or wraps when a
+    // message appears (the button keeps a fixed size on mobile and desktop).
+    <div className="flex flex-col items-end gap-1.5">
       {mfaRequired && (
-        <p className="text-xs whitespace-nowrap" style={{ color: '#F59E0B' }}>
+        <p className="text-xs w-full text-left sm:text-right" style={{ color: '#F59E0B' }}>
           Two-factor authentication required.{' '}
-          <a href="/settings" style={{ textDecoration: 'underline', fontWeight: 600 }}>
+          <a href="/settings#security" style={{ textDecoration: 'underline', fontWeight: 600 }}>
             Enable in Settings
           </a>
         </p>
       )}
       {error && (
-        <p className="text-xs whitespace-nowrap" style={{ color: '#EF4444' }}>{error}</p>
+        <p className="text-xs w-full text-left sm:text-right" style={{ color: '#EF4444' }}>{error}</p>
       )}
       <button
         onClick={handleClick}
         disabled={disabled || loading}
         className={className}
-        style={style}
+        style={{ whiteSpace: 'nowrap', ...style }}
       >
         {loading ? 'Connecting…' : children}
       </button>
