@@ -66,6 +66,13 @@ export default function ChatBot() {
     if (open) setTimeout(() => inputRef.current?.focus(), 150)
   }, [open])
 
+  // The mobile bottom bar's center button opens Navi via this event.
+  useEffect(() => {
+    const onOpen = () => setOpen(true)
+    window.addEventListener('naviio:open-navi', onOpen)
+    return () => window.removeEventListener('naviio:open-navi', onOpen)
+  }, [])
+
   const send = useCallback(async (text: string) => {
     if (!text.trim() || loading) return
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: text.trim() }
@@ -342,7 +349,7 @@ export default function ChatBot() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? 'Close Navi' : 'Open Navi'}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-200"
+        className={`${open ? 'flex' : 'hidden lg:flex'} fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full items-center justify-center shadow-lg transition-all duration-200`}
         style={{
           background: open ? 'var(--color-surface-card)' : 'linear-gradient(135deg, #00B894, #00C49F)',
           border: open ? '1px solid #1E3055' : 'none',

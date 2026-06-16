@@ -12,7 +12,7 @@ const NaviScore = dynamic(() => import('@/components/NaviScore'), { ssr: false, 
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import RefreshNowButton from '@/components/RefreshNowButton'
 import { formatCurrency } from '@/lib/utils'
-import { DollarSign, TrendingUp, Activity, Clock, BarChart3, Users, PieChart, Wallet } from 'lucide-react'
+import { DollarSign, TrendingUp, Activity, Clock, BarChart3, Users, PieChart, Wallet, Sparkles, ArrowRight } from 'lucide-react'
 import type { CashFlowDataPoint } from '@/types'
 
 interface Metrics {
@@ -168,7 +168,40 @@ export default function DashboardPage() {
           />
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* ── Mobile feed: hero balance + compact KPI chips + Navi prompt ── */}
+            <div className="lg:hidden space-y-4">
+              <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(150deg, var(--color-surface-card), var(--color-surface-bg))', border: '1px solid var(--color-surface-border)' }}>
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{cards[0].title}</p>
+                <p className="text-[2rem] leading-tight font-bold text-white mt-1">{cards[0].value}{cards[0].suffix ?? ''}</p>
+                {cards[0].subtitle && <p className="text-xs mt-1.5" style={{ color: '#00C49F' }}>{cards[0].subtitle}</p>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {cards.slice(1).map((c) => (
+                  <div key={c.title} className="rounded-xl p-3.5" style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: c.iconBg }}>{c.icon}</span>
+                      <span className="text-[11px] truncate" style={{ color: 'var(--color-text-muted)' }}>{c.title}</span>
+                    </div>
+                    <p className="text-lg font-semibold text-white mt-1.5">{c.value}{c.suffix ?? ''}</p>
+                    {c.subtitle && <p className="text-[11px] mt-0.5 truncate" style={{ color: 'var(--color-text-muted)' }}>{c.subtitle}</p>}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('naviio:open-navi'))}
+                className="w-full rounded-xl p-4 flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
+                style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}
+              >
+                <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(0,196,159,0.15)' }}><Sparkles size={18} style={{ color: '#00C49F' }} /></span>
+                <span className="flex-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Ask Navi about your finances</span>
+                <ArrowRight size={16} style={{ color: 'var(--color-text-muted)' }} />
+              </button>
+            </div>
+
+            {/* ── Desktop metric grid (unchanged) ── */}
+            <div className="hidden lg:grid grid-cols-4 gap-4">
               {cards.map((c) => (
                 <MetricCard key={c.title} title={c.title} value={c.value} suffix={c.suffix} subtitle={c.subtitle} icon={c.icon} iconBg={c.iconBg} tooltip={c.tooltip} />
               ))}

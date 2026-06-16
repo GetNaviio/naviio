@@ -2,6 +2,7 @@
 
 import { SidebarProvider, useSidebar } from './SidebarContext'
 import Sidebar from './Sidebar'
+import MobileTabBar from './MobileTabBar'
 import type { ReactNode } from 'react'
 import { ThemeProvider } from './ThemeContext'
 
@@ -23,11 +24,14 @@ function ShellInner({ children }: { children: ReactNode }) {
       {/* `app-root` wraps the entire dashboard (sidebar + main) so theme variables apply to all parts */}
       <div id="app-root" className="relative min-h-screen">
         <Sidebar isOpen={open} onClose={close} />
-        {/* Main — offset only on desktop */}
-        <div className="flex flex-col lg:ml-60" style={{ backgroundColor: 'var(--color-surface-bg)', minHeight: '100vh' }}>
+        {/* Main — offset only on desktop; pad the bottom on mobile so the tab bar never covers content */}
+        <div className="flex flex-col lg:ml-60 pb-16 lg:pb-0" style={{ backgroundColor: 'var(--color-surface-bg)', minHeight: '100vh' }}>
           {children}
         </div>
       </div>
+
+      {/* Mobile bottom navigation */}
+      <MobileTabBar />
     </>
   )
 }

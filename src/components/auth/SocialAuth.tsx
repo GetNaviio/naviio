@@ -78,7 +78,7 @@ export default function SocialAuth({ mode }: { mode: 'login' | 'register' }) {
       {/* Google */}
       <a
         href="/api/auth/google"
-        className="w-full py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+        className="w-full py-3.5 lg:py-2.5 rounded-xl lg:rounded-lg text-base lg:text-sm font-semibold flex items-center justify-center gap-2 transition-all"
         style={btn}
       >
         <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden>
@@ -95,13 +95,13 @@ export default function SocialAuth({ mode }: { mode: 'login' | 'register' }) {
         <input
           type="email" value={pkEmail} onChange={(e) => setPkEmail(e.target.value)}
           placeholder="you@company.com"
-          className="w-full px-3 py-2.5 rounded-lg text-sm text-white outline-none"
+          className="w-full px-4 py-3.5 rounded-xl text-base lg:px-3 lg:py-2.5 lg:rounded-lg lg:text-sm text-white outline-none"
           style={input}
         />
       )}
       <button
         type="button" onClick={passkey} disabled={busy === 'passkey'}
-        className="w-full py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all" style={btn}
+        className="w-full py-3.5 lg:py-2.5 rounded-xl lg:rounded-lg text-base lg:text-sm font-semibold flex items-center justify-center gap-2 transition-all" style={btn}
       >
         <KeyRound size={16} />
         {busy === 'passkey' ? 'Waiting for passkey…' : `${verb} with a passkey`}
@@ -114,13 +114,13 @@ export default function SocialAuth({ mode }: { mode: 'login' | 'register' }) {
             <input
               type="email" value={ssoEmail} onChange={(e) => setSsoEmail(e.target.value)}
               placeholder="you@company.com" onKeyDown={(e) => e.key === 'Enter' && sso()}
-              className="w-full px-3 py-2.5 rounded-lg text-sm text-white outline-none"
+              className="w-full px-4 py-3.5 rounded-xl text-base lg:px-3 lg:py-2.5 lg:rounded-lg lg:text-sm text-white outline-none"
               style={input}
             />
           )}
           <button
             type="button" onClick={sso}
-            className="w-full py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all" style={btn}
+            className="w-full py-3.5 lg:py-2.5 rounded-xl lg:rounded-lg text-base lg:text-sm font-semibold flex items-center justify-center gap-2 transition-all" style={btn}
           >
             {!ssoOpen && <Building2 size={16} />}
             {ssoOpen ? 'Continue' : `${verb} with SSO`}
