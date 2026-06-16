@@ -30,17 +30,17 @@ export default function MobileHero({
 }) {
   return (
     <div className="lg:hidden space-y-4">
-      <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(150deg, #12233F, #0E1A30)', border: '1px solid var(--color-surface-border)' }}>
-        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{label}</p>
+      <div className="rounded-2xl p-5" style={{ background: 'var(--hero-grad)', border: '1px solid var(--color-surface-border)' }}>
+        <p className="text-xs" style={{ color: 'var(--hero-fg-muted)' }}>{label}</p>
         <div className="flex items-end gap-2 mt-1">
-          <p className="text-[2.25rem] leading-none font-bold text-white">{value}</p>
+          <p className="text-[2.25rem] leading-none font-bold" style={{ color: 'var(--hero-fg)' }}>{value}</p>
           {trend != null && (
-            <span className="text-xs mb-1 flex items-center gap-0.5" style={{ color: trend >= 0 ? '#00C49F' : '#F87171' }}>
+            <span className="text-xs mb-1 flex items-center gap-0.5" style={{ color: trend >= 0 ? '#9EFCE4' : '#FFC4C4' }}>
               {trend >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}{Math.abs(trend).toFixed(0)}%
             </span>
           )}
         </div>
-        {sub && <p className="text-xs mt-2" style={{ color: 'var(--color-text-secondary)' }}>{sub}</p>}
+        {sub && <p className="text-xs mt-2" style={{ color: 'var(--hero-fg-sub)' }}>{sub}</p>}
       </div>
 
       {chips.length > 0 && (
@@ -48,7 +48,7 @@ export default function MobileHero({
           {chips.map((c) => (
             <div key={c.label} className="rounded-xl p-3" style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}>
               <p className="text-[10px] uppercase tracking-wide truncate" style={{ color: 'var(--color-text-muted)' }}>{c.label}</p>
-              <p className="text-base font-semibold mt-1 truncate" style={{ color: c.color ?? '#fff' }}>{c.value}</p>
+              <p className="text-base font-semibold mt-1 truncate" style={{ color: c.color ?? 'var(--color-text-primary)' }}>{c.value}</p>
             </div>
           ))}
         </div>

@@ -26,6 +26,16 @@
   --font-mono: monospace;
 }
 
+/* Mobile hero card — a deliberate accent in BOTH themes (navy in dark, brand
+   blue in light), always with light text. Kept theme-aware so it never renders
+   as a "dark-mode card" stranded on a light page. */
+:root {
+  --hero-grad: linear-gradient(150deg, #12233F, #0E1A30);
+  --hero-fg: #ffffff;
+  --hero-fg-muted: rgba(255, 255, 255, 0.55);
+  --hero-fg-sub: rgba(255, 255, 255, 0.82);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -91,6 +101,13 @@ html.light ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
   --color-warning: #b45309;
   --color-danger: #dc2626;
   --color-info: #0047FF;
+
+  /* Light-mode hero: brand blue with white text (reads as an accent, not a
+     stray dark card). */
+  --hero-grad: linear-gradient(150deg, #2F6BFF, #1E5BE6);
+  --hero-fg: #ffffff;
+  --hero-fg-muted: rgba(255, 255, 255, 0.78);
+  --hero-fg-sub: rgba(255, 255, 255, 0.92);
 
   --font-sans: var(--font-inter);
   --font-heading: var(--font-sora);
