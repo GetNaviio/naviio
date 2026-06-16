@@ -5,6 +5,7 @@ import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import NaviBadge from '@/components/ui/NaviBadge'
 import MetricCard from '@/components/ui/MetricCard'
+import MobileHero from '@/components/dashboard/MobileHero'
 import dynamic from 'next/dynamic'
 import ChartSkeleton from '@/components/charts/ChartSkeleton'
 // Lazy-loaded — pulls in recharts; kept out of the initial bundle.
@@ -251,7 +252,19 @@ export default function ExpensesPage() {
 
             {meta && <FreshnessLine meta={meta} />}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Mobile: hero (Total Expenses) + top-3 category chips. Desktop keeps the 3-card grid. */}
+            <MobileHero
+              label={`Total Expenses · ${scope.label}`}
+              value={formatCurrency(scope.total, true)}
+              sub={largest ? `Largest: ${largest.category} (${largest.percentage.toFixed(0)}%) · ${scope.categories.length} categories` : `${scope.categories.length} categories`}
+              chips={expenseCategories.slice(0, 3).map((c) => ({
+                label: c.category,
+                value: formatCurrency(c.amount, true),
+                color: c.color,
+              }))}
+            />
+
+            <div className="hidden lg:grid grid-cols-1 sm:grid-cols-3 gap-4">
               <MetricCard
                 title="Total Expenses"
                 value={formatCurrency(scope.total, true)}

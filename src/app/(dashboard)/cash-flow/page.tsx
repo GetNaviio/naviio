@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import MetricCard from '@/components/ui/MetricCard'
+import MobileHero from '@/components/dashboard/MobileHero'
 import dynamic from 'next/dynamic'
 import ChartSkeleton from '@/components/charts/ChartSkeleton'
 // Lazy-loaded — pulls in recharts; kept out of the initial bundle.
@@ -68,6 +69,10 @@ export default function CashFlowPage() {
 
   const thisMonthNet = cf?.byMonth?.length ? cf.byMonth[cf.byMonth.length - 1].net : 0
   const runway = m?.runwayMonths ?? null
+  // Month-over-month change in ending cash balance (for the hero arrow).
+  const cashTrend = series.length >= 2 && series[series.length - 2].balance
+    ? ((series[series.length - 1].balance - series[series.length - 2].balance) / Math.abs(series[series.length - 2].balance)) * 100
+    : null
 
   return (
     <div>
@@ -89,7 +94,20 @@ export default function CashFlowPage() {
           />
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Mobile: hero (Cash Balance) + 3 chips. Desktop keeps the 4-card grid. */}
+            <MobileHero
+              label="Cash Balance"
+              value={cash != null ? formatCurrency(cash, true) : '—'}
+              trend={cashTrend}
+              sub={`${runway == null ? '∞' : `${runway} mo`} runway · ${cf && cf.burnRate > 0 ? `${formatCurrency(cf.burnRate, true)}/mo burn` : 'cash positive'}`}
+              chips={[
+                { label: 'Burn', value: cf && cf.burnRate > 0 ? formatCurrency(cf.burnRate, true) : 'positive', color: '#F59E0B' },
+                { label: 'Net (mo)', value: formatCurrency(thisMonthNet, true), color: thisMonthNet >= 0 ? '#10B981' : '#F87171' },
+                { label: 'Runway', value: cash == null ? '—' : runway == null ? '∞' : `${runway} mo`, color: '#8B5CF6' },
+              ]}
+            />
+
+            <div className="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <MetricCard
                 title="Cash Balance"
                 value={cash != null ? formatCurrency(cash, true) : '—'}

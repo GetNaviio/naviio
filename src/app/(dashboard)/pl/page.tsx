@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import MetricCard from '@/components/ui/MetricCard'
+import MobileHero from '@/components/dashboard/MobileHero'
 import ConnectPrompt from '@/components/ConnectPrompt'
 import { SkeletonGrid, ErrorState } from '@/components/ui/PageState'
 import { usePageData, fetchJson } from '@/hooks/usePageData'
@@ -233,7 +234,20 @@ export default function PLPage() {
 
             {meta && <FreshnessLine meta={meta} />}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Mobile: one hero (Net Income) + 3 chips. Desktop keeps the 4-card grid. */}
+            <MobileHero
+              label={`Net Income · ${scope.label}`}
+              value={fmtMoney(scope.net)}
+              trend={yoyTrends.net ?? null}
+              sub={`${formatCurrency(scope.income, true)} income · ${scope.margin != null ? `${scope.margin.toFixed(0)}% margin` : '—'}`}
+              chips={[
+                { label: 'Income', value: formatCurrency(scope.income, true), color: '#3B82F6' },
+                { label: 'Expenses', value: formatCurrency(scope.expenses, true), color: '#F59E0B' },
+                { label: 'Margin', value: scope.margin != null ? `${scope.margin.toFixed(0)}%` : '—', color: '#14B8A6' },
+              ]}
+            />
+
+            <div className="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <MetricCard title="Total Income" value={formatCurrency(scope.income, true)} trend={yoyTrends.income} trendLabel={trendLabel} icon={<TrendingUp size={16} style={{ color: '#3B82F6' }} />} iconBg="rgba(59,130,246,0.15)" subtitle={scope.kind === 'month' ? scope.label : undefined} tooltip={`Income from your transaction ledger for ${scope.label.toLowerCase()}, deduplicated against Stripe payouts. Trend compares the same period last year.`} />
               <MetricCard title="Total Expenses" value={formatCurrency(scope.expenses, true)} trend={yoyTrends.expenses} trendLabel={trendLabel} goodWhen="down" icon={<TrendingDown size={16} style={{ color: '#F59E0B' }} />} iconBg="rgba(245,158,11,0.15)" subtitle={scope.kind === 'month' ? scope.label : undefined} tooltip={`Operating expenses for ${scope.label.toLowerCase()}, excluding transfers and loan principal. Green when expenses are lower than the same period last year.`} />
               <MetricCard title="Net Income" value={formatCurrency(scope.net, true)} trend={yoyTrends.net} trendLabel={trendLabel} icon={scope.net >= 0 ? <TrendingUp size={16} style={{ color: '#10B981' }} /> : <TrendingDown size={16} style={{ color: '#EF4444' }} />} iconBg={scope.net >= 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'} subtitle={scope.kind === 'month' ? scope.label : undefined} tooltip={`Income minus expenses for ${scope.label.toLowerCase()}.`} />

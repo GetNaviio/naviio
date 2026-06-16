@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import MetricCard from '@/components/ui/MetricCard'
+import MobileHero from '@/components/dashboard/MobileHero'
 import ConnectPrompt from '@/components/ConnectPrompt'
 import type { StripeMetrics } from '@/lib/integrations/stripe'
 import { formatCurrency } from '@/lib/utils'
@@ -43,6 +44,10 @@ export default function RevenuePage() {
   const total = m?.customers?.total ?? 0
   const mrr = m?.mrr ?? 0
   const arpu = total ? mrr / total : 0
+  // MRR month-over-month % from the movement waterfall (net new ÷ starting MRR).
+  const mrrTrend = mv?.waterfall && mv.waterfall.startMrr
+    ? (mv.waterfall.netNewMrr / mv.waterfall.startMrr) * 100
+    : null
 
   return (
     <div>
@@ -69,7 +74,20 @@ export default function RevenuePage() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Mobile: hero (MRR) + 3 chips. Desktop keeps the 4-card grid. */}
+            <MobileHero
+              label="MRR"
+              value={money(mrr)}
+              trend={mrrTrend}
+              sub={`ARR ${money(m?.arr)}${mv?.nrr != null ? ` · ${mv.nrr.toFixed(0)}% NRR` : ''}`}
+              chips={[
+                { label: 'ARR', value: money(m?.arr), color: '#3B82F6' },
+                { label: 'Customers', value: total.toLocaleString(), color: '#10B981' },
+                { label: 'Churn', value: `${((m?.churnRate ?? 0) * 100).toFixed(1)}%`, color: '#EF4444' },
+              ]}
+            />
+
+            <div className="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <MetricCard title="MRR" value={money(mrr)} icon={<TrendingUp size={16} style={{ color: '#3B82F6' }} />} iconBg="rgba(59,130,246,0.15)" subtitle={`ARR ${money(m?.arr)}`} tooltip="Monthly Recurring Revenue — normalized monthly value of all active Stripe subscriptions." />
               <MetricCard title="Active Customers" value={total.toLocaleString()} icon={<Users size={16} style={{ color: '#10B981' }} />} iconBg="rgba(16,185,129,0.15)" subtitle={`+${m?.customers?.newThisMonth ?? 0} this month`} tooltip="Customers with active subscriptions, from Stripe." />
               <MetricCard title="Churn Rate" value={`${((m?.churnRate ?? 0) * 100).toFixed(2)}`} suffix="%" icon={<Activity size={16} style={{ color: '#EF4444' }} />} iconBg="rgba(239,68,68,0.15)" tooltip="Monthly logo churn — share of customers lost to cancellation." />
