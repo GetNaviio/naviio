@@ -4,6 +4,10 @@ import { useState } from 'react'
 import { KeyRound, Building2 } from 'lucide-react'
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 
+// Enterprise SSO is hidden until WorkOS is configured in production. Flip to
+// true (and set WORKOS_* env vars) to re-enable the "Sign in/up with SSO" button.
+const SSO_ENABLED = false
+
 const ignorable = (msg: string) => /NotAllowed|AbortError|cancel/i.test(msg)
 async function errText(res: Response, fallback: string) {
   return (await res.json().catch(() => ({}))).error || fallback
@@ -103,22 +107,26 @@ export default function SocialAuth({ mode }: { mode: 'login' | 'register' }) {
         {busy === 'passkey' ? 'Waiting for passkey…' : `${verb} with a passkey`}
       </button>
 
-      {/* SSO */}
-      {ssoOpen && (
-        <input
-          type="email" value={ssoEmail} onChange={(e) => setSsoEmail(e.target.value)}
-          placeholder="you@company.com" onKeyDown={(e) => e.key === 'Enter' && sso()}
-          className="w-full px-3 py-2.5 rounded-lg text-sm text-white outline-none"
-          style={input}
-        />
+      {/* SSO — hidden until WorkOS is configured (see SSO_ENABLED). */}
+      {SSO_ENABLED && (
+        <>
+          {ssoOpen && (
+            <input
+              type="email" value={ssoEmail} onChange={(e) => setSsoEmail(e.target.value)}
+              placeholder="you@company.com" onKeyDown={(e) => e.key === 'Enter' && sso()}
+              className="w-full px-3 py-2.5 rounded-lg text-sm text-white outline-none"
+              style={input}
+            />
+          )}
+          <button
+            type="button" onClick={sso}
+            className="w-full py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all" style={btn}
+          >
+            {!ssoOpen && <Building2 size={16} />}
+            {ssoOpen ? 'Continue' : `${verb} with SSO`}
+          </button>
+        </>
       )}
-      <button
-        type="button" onClick={sso}
-        className="w-full py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all" style={btn}
-      >
-        {!ssoOpen && <Building2 size={16} />}
-        {ssoOpen ? 'Continue' : `${verb} with SSO`}
-      </button>
 
       {error && <p className="text-xs" style={{ color: '#EF4444' }}>{error}</p>}
     </div>
