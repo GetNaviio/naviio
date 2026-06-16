@@ -171,3 +171,63 @@ export function classify(t: LedgerTxn): Classification {
     : (keywordCategory(`${t.description ?? ''} ${t.merchantName ?? ''}`) ?? 'Other')
   return { bucket: 'EXPENSE', expenseCategory, excludedFromPnl: false }
 }
+
+/**
+ * Stable vendor identity. The same merchant must always map to the same key so
+ * it gets one consistent category (and one override) across every transaction.
+ * Prefer the clean merchant name; else the description with jammed tokens split
+ * and reference/order numbers stripped (so "ACH … GUSTO PAY 123456" and a later
+ * "… GUSTO PAY 998877" share a key).
+ */
+export function vendorKey(t: { merchantName?: string | null; description?: string | null }): string {
+  const base = (t.merchantName?.trim() || t.description?.trim() || '')
+  return base
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\d[\d-]*\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+/**
+ * Resolve ONE expense category per vendor across a set of transactions, so a
+ * vendor never appears under two categories. Precedence per vendor:
+ *   1. user override (vendorKey → label), applied to all the vendor's txns;
+ *   2. else the most common non-'Other' auto label among the vendor's txns;
+ *   3. else 'Other'.
+ * Returns a vendorKey → category map. Callers label each expense row by its
+ * vendorKey, guaranteeing consistency everywhere the map is used.
+ */
+export function resolveVendorCategories(
+  txns: LedgerTxn[],
+  overridesByVendor: Record<string, string> = {},
+): Map<string, string> {
+  const votes = new Map<string, Map<string, number>>()
+  for (const t of txns) {
+    const c = classify(t)
+    if (c.bucket !== 'EXPENSE') continue
+    const vk = vendorKey(t)
+    if (!vk) continue
+    const label = c.expenseCategory || 'Other'
+    const m = votes.get(vk) ?? new Map<string, number>()
+    m.set(label, (m.get(label) ?? 0) + 1)
+    votes.set(vk, m)
+  }
+  const out = new Map<string, string>()
+  for (const [vk, counts] of votes) {
+    if (overridesByVendor[vk]) { out.set(vk, overridesByVendor[vk]); continue }
+    let best = 'Other'
+    let bestN = 0
+    for (const [label, n] of counts) {
+      if (label === 'Other') continue
+      if (n > bestN) { best = label; bestN = n }
+    }
+    out.set(vk, best)
+  }
+  return out
+}
+
+/** The consistent category for a single transaction given a resolved map. */
+export function vendorCategoryOf(t: LedgerTxn, resolved: Map<string, string>): string {
+  return resolved.get(vendorKey(t)) ?? 'Other'
+}

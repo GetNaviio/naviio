@@ -18,7 +18,7 @@
 import { z } from 'zod'
 import { withOrg } from '@/lib/api/with-org'
 import { loadPrimaryLedger, startOfYearUTC, categoryOverrides } from '@/lib/metrics/ledger'
-import { classify } from '@/lib/metrics/classify'
+import { classify, resolveVendorCategories, vendorCategoryOf } from '@/lib/metrics/classify'
 
 const QuerySchema = z
   .object({
@@ -57,9 +57,12 @@ export const GET = withOrg(async (request, { orgId }) => {
   }
 
   const [ledger, catOverrides] = await Promise.all([
-    loadPrimaryLedger(orgId, from),
-    categoryOverrides(orgId), // user category fixes — applied everywhere
+    loadPrimaryLedger(orgId), // full ledger → consistent per-vendor categories
+    categoryOverrides(orgId), // user category fixes (vendor-keyed) — applied everywhere
   ])
+
+  // One category per vendor across the whole ledger — matches the metric engine.
+  const vendorCat = resolveVendorCategories(ledger, catOverrides)
 
   const wantBucket = q.bucket === 'income' ? 'REVENUE' : 'EXPENSE'
   const rows: {
@@ -74,10 +77,11 @@ export const GET = withOrg(async (request, { orgId }) => {
 
   for (const t of ledger) {
     const d = t.date instanceof Date ? t.date : new Date(t.date)
+    if (d.getTime() < from.getTime()) continue
     if (to && d.getTime() >= to.getTime()) continue
     const c = classify(t)
     if (c.bucket !== wantBucket) continue
-    const label = c.bucket === 'EXPENSE' ? ((t.externalId && catOverrides[t.externalId]) || c.expenseCategory || 'Other') : null
+    const label = c.bucket === 'EXPENSE' ? vendorCategoryOf(t, vendorCat) : null
     if (q.category && label !== q.category) continue
     total += t.amount
     rows.push({

@@ -12,7 +12,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { withOrg } from '@/lib/api/with-org'
 import { parseBody } from '@/lib/validate'
-import { USER_CATEGORIES } from '@/lib/metrics/classify'
+import { USER_CATEGORIES, vendorKey } from '@/lib/metrics/classify'
 import * as cache from '@/lib/cache'
 
 const PatchSchema = z
@@ -66,7 +66,37 @@ export const PATCH = withOrg(async (request, { orgId }) => {
 export const DELETE = withOrg(async (request, { orgId }) => {
   const externalId = new URL(request.url).searchParams.get('externalId')
   if (!externalId) return Response.json({ error: 'externalId is required' }, { status: 400 })
-  await prisma.txnClassification.deleteMany({ where: { orgId, externalId } })
+
+  // Category overrides are vendor-level, so "reset to auto" must clear the
+  // override for EVERY transaction of this vendor — not just the clicked row.
+  const clicked = await prisma.transaction.findFirst({
+    where: { orgId, externalId },
+    select: { merchantName: true, description: true },
+  })
+  if (!clicked) {
+    await prisma.txnClassification.deleteMany({ where: { orgId, externalId } })
+    await cache.delPattern(`org:${orgId}:*`)
+    return Response.json({ success: true })
+  }
+  const vk = vendorKey(clicked)
+
+  // Find category-override rows whose transaction shares this vendor.
+  const overrides = await prisma.txnClassification.findMany({
+    where: { orgId, category: { not: null } },
+    select: { id: true, externalId: true, expenseClass: true },
+  })
+  const sibTxns = await prisma.transaction.findMany({
+    where: { orgId, externalId: { in: overrides.map((o) => o.externalId) } },
+    select: { externalId: true, merchantName: true, description: true },
+  })
+  const vkByExt = new Map(sibTxns.map((t) => [t.externalId, vendorKey(t)]))
+  const targets = overrides.filter((o) => vkByExt.get(o.externalId) === vk)
+
+  // Clear the category; keep any COGS override (delete the row only if empty).
+  await prisma.$transaction([
+    ...targets.filter((o) => o.expenseClass == null).map((o) => prisma.txnClassification.delete({ where: { id: o.id } })),
+    ...targets.filter((o) => o.expenseClass != null).map((o) => prisma.txnClassification.update({ where: { id: o.id }, data: { category: null } })),
+  ])
   await cache.delPattern(`org:${orgId}:*`)
   return Response.json({ success: true })
 })

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type { IntegrationProvider } from '@prisma/client'
 import type { DatedLedgerTxn } from './compute'
+import { vendorKey } from './classify'
 
 /**
  * Load an org's normalized transaction ledger (Plaid + Stripe + any synced
@@ -60,8 +61,23 @@ export async function categoryOverrides(orgId: string): Promise<Record<string, s
   const rows = await prisma.txnClassification.findMany({
     where: { orgId, category: { not: null } },
     select: { externalId: true, category: true },
+    orderBy: { updatedAt: 'asc' }, // most-recent fix wins per vendor (applied last)
   })
-  return Object.fromEntries(rows.map((r) => [r.externalId, r.category!]))
+  if (rows.length === 0) return {}
+  // Project each per-transaction override onto its VENDOR, so a single fix
+  // applies to every transaction from that vendor — past and future. Keyed by
+  // vendorKey (not externalId); consumers look up via vendorKey(txn).
+  const txns = await prisma.transaction.findMany({
+    where: { orgId, externalId: { in: rows.map((r) => r.externalId) } },
+    select: { externalId: true, merchantName: true, description: true },
+  })
+  const vendorByExt = new Map(txns.map((t) => [t.externalId, vendorKey(t)]))
+  const out: Record<string, string> = {}
+  for (const r of rows) {
+    const vk = vendorByExt.get(r.externalId)
+    if (vk) out[vk] = r.category!
+  }
+  return out
 }
 
 /** UTC start-of-year — stable YTD boundary regardless of server timezone. */

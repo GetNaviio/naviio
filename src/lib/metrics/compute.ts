@@ -3,7 +3,7 @@
  * from the environment — callers pass the rows and the window, so every number
  * is deterministic and unit-tested.
  */
-import { classify, type LedgerTxn } from './classify'
+import { classify, resolveVendorCategories, vendorCategoryOf, type LedgerTxn } from './classify'
 
 export interface DatedLedgerTxn extends LedgerTxn {
   date: Date | string
@@ -52,13 +52,18 @@ export function incomeStatement(
   txns: DatedLedgerTxn[],
   from?: Date,
   to?: Date,
-  /** externalId → user category label; wins over the auto-classifier's label */
+  /** vendorKey → user category label; wins over the auto-classifier's label */
   categoryOverridesMap?: Record<string, string>,
 ): IncomeStatement {
   let totalIncome = 0
   let totalExpenses = 0
   const byCat = new Map<string, number>()
   const months = new Map<string, { income: number; expenses: number }>()
+
+  // One category per vendor across the whole ledger (override > majority signal),
+  // so a vendor never splits across two categories. Resolved over all rows, not
+  // just the windowed ones, for a stable label regardless of period.
+  const vendorCat = resolveVendorCategories(txns, categoryOverridesMap ?? {})
 
   for (const t of txns) {
     if (!inWindow(t.date, from, to)) continue
@@ -72,7 +77,7 @@ export function incomeStatement(
     } else if (c.bucket === 'EXPENSE') {
       totalExpenses += t.amount
       m.expenses += t.amount
-      const cat = (t.externalId && categoryOverridesMap?.[t.externalId]) || c.expenseCategory || 'Other'
+      const cat = vendorCategoryOf(t, vendorCat)
       byCat.set(cat, (byCat.get(cat) ?? 0) + t.amount)
     }
     months.set(mk, m)

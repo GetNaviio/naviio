@@ -1,8 +1,8 @@
 import { requireAuth, getDefaultOrgId } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { classify } from '@/lib/metrics/classify'
+import { classify, resolveVendorCategories, vendorCategoryOf, vendorKey } from '@/lib/metrics/classify'
 import { classifyExpense } from '@/lib/model/cogs'
-import { categoryOverrides, classificationOverrides } from '@/lib/metrics/ledger'
+import { loadPrimaryLedger, categoryOverrides, classificationOverrides } from '@/lib/metrics/ledger'
 
 /**
  * Recent transactions for the Expenses table — real rows from the ledger, each
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
       dateWindow = { gte: new Date(Date.UTC(y, mo - 1, 1)), lt: new Date(Date.UTC(y, mo, 1)) }
     }
 
-    const [rows, catOverrides, classOverrides] = await Promise.all([
+    const [rows, fullLedger, catOverrides, classOverrides] = await Promise.all([
       prisma.transaction.findMany({
         where: { orgId, ...(dateWindow ? { date: dateWindow } : {}) },
         orderBy: { date: 'desc' },
@@ -38,9 +38,13 @@ export async function GET(request: Request) {
           merchantName: true, type: true, source: true, category: true, externalId: true,
         },
       }),
-      categoryOverrides(orgId), // user category fixes — applied everywhere
+      loadPrimaryLedger(orgId), // full ledger → consistent per-vendor categories
+      categoryOverrides(orgId), // user category fixes (vendor-keyed) — applied everywhere
       classificationOverrides(orgId), // COGS/OpEx fixes — applied everywhere
     ])
+
+    // One category per vendor across the whole ledger — matches the metric engine.
+    const vendorCat = resolveVendorCategories(fullLedger, catOverrides)
 
     const transactions = rows.map((r) => {
       const ledgerTxn = {
@@ -52,15 +56,16 @@ export async function GET(request: Request) {
         merchantName: r.merchantName,
       }
       const c = classify(ledgerTxn)
-      const override = r.externalId ? catOverrides[r.externalId] : undefined
+      const isExpense = c.bucket === 'EXPENSE'
       const classOverride = r.externalId ? classOverrides[r.externalId] : undefined
       const label =
         c.bucket === 'REVENUE' ? 'Revenue' :
         c.bucket === 'TRANSFER' ? 'Transfer' :
-        (override ?? c.expenseCategory ?? 'Other')
+        vendorCategoryOf(ledgerTxn, vendorCat)
+      // Vendor has a user override when its resolved label came from the override map.
+      const overridden = isExpense && !!catOverrides[vendorKey(ledgerTxn)]
       // For expense rows, resolve COGS vs OpEx (user override > heuristic) so the
       // Expenses table can show and let the user fix the gross-margin split.
-      const isExpense = c.bucket === 'EXPENSE'
       const { expenseClass } = isExpense
         ? classifyExpense(ledgerTxn, classOverride ?? null)
         : { expenseClass: null }
@@ -69,7 +74,7 @@ export async function GET(request: Request) {
         externalId: r.externalId,
         // Editable only for expenses; flag lets the UI mark user-fixed rows.
         editable: isExpense,
-        overridden: !!override,
+        overridden,
         date: r.date.toISOString(),
         description: r.description,
         amount: r.amount,
