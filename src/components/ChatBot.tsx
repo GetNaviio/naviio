@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { MessageSquare, X, Send, Bot, Sparkles, TrendingUp, DollarSign, PieChart, Calendar, RotateCcw, Mic } from 'lucide-react'
+import { MessageSquare, X, Send, Bot, Sparkles, TrendingUp, DollarSign, PieChart, Calendar, RotateCcw, Mic, ArrowRight, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { useVoiceInput } from '@/hooks/useVoiceInput'
 import { cleanNaviText } from '@/lib/naviFormat'
 import { parseDecisionQuestion } from '@/lib/decisions/parse'
-import NaviDecisionCard from '@/components/navi/NaviDecisionCard'
+import NaviDecisionDrawer from '@/components/navi/NaviDecisionDrawer'
 import type { DecisionAnswer } from '@/lib/decisions/types'
 
 interface Message {
@@ -13,9 +13,15 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   streaming?: boolean
-  /** When Navi answers a decision question, the grounded result renders as a card. */
+  /** When Navi answers a decision question, the grounded result opens as a drill-down. */
   decision?: DecisionAnswer
+  question?: string
 }
+
+const verdictDot = (v: DecisionAnswer['verdict']) =>
+  v === 'yes' ? <CheckCircle2 size={15} style={{ color: '#10B981' }} />
+  : v === 'no' ? <XCircle size={15} style={{ color: '#EF4444' }} />
+  : <AlertCircle size={15} style={{ color: '#3B82F6' }} />
 
 const SUGGESTED = [
   { icon: DollarSign,  prompt: 'What are my top tax saving opportunities right now?' },
@@ -59,6 +65,7 @@ export default function ChatBot() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [outOfCredits, setOutOfCredits] = useState(false)
+  const [decisionView, setDecisionView] = useState<{ answer: DecisionAnswer; question: string } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -108,7 +115,9 @@ export default function ChatBot() {
         }
         const dData = await dRes.json().catch(() => ({}))
         if (dData?.answer) {
-          setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: dData.answer.headline, decision: dData.answer as DecisionAnswer, streaming: false } : m))
+          const ans = dData.answer as DecisionAnswer
+          setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: ans.headline, decision: ans, question: text.trim(), streaming: false } : m))
+          setDecisionView({ answer: ans, question: text.trim() })  // opens the drill-down
           setLoading(false); return
         }
         // No grounded answer (e.g. missing inputs) → fall through to a chat reply.
@@ -240,9 +249,29 @@ export default function ChatBot() {
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {messages.map((msg) => {
             const isUser = msg.role === 'user'
-            // Decision answers render as the full grounded card, not a chat bubble.
+            // A decision answer shows a compact result that opens the full
+            // drill-down (framed like the transactions drill-down).
             if (msg.decision) {
-              return <div key={msg.id} className="w-full"><NaviDecisionCard answer={msg.decision} /></div>
+              const d = msg.decision
+              return (
+                <div key={msg.id} className="flex items-end gap-2">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mb-0.5" style={{ backgroundColor: 'var(--color-surface-border)' }}>
+                    <Bot size={12} style={{ color: '#00C49F' }} />
+                  </div>
+                  <button
+                    onClick={() => setDecisionView({ answer: d, question: msg.question ?? '' })}
+                    className="text-left px-3.5 py-2.5 rounded-2xl max-w-[85%] transition-colors hover:bg-white/5"
+                    style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)', borderBottomLeftRadius: 4 }}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                      {verdictDot(d.verdict)} {d.headline}
+                    </span>
+                    <span className="flex items-center gap-1 text-xs mt-1.5 font-medium" style={{ color: '#3B82F6' }}>
+                      View full analysis <ArrowRight size={12} />
+                    </span>
+                  </button>
+                </div>
+              )
             }
             return (
               <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'items-end gap-2'}`}>
@@ -401,6 +430,15 @@ export default function ChatBot() {
           : <MessageSquare size={20} className="text-white" />
         }
       </button>
+
+      {/* Decision drill-down (slide-over, framed like the transactions drill-down) */}
+      {decisionView && (
+        <NaviDecisionDrawer
+          answer={decisionView.answer}
+          question={decisionView.question}
+          onClose={() => setDecisionView(null)}
+        />
+      )}
     </>
   )
 }
