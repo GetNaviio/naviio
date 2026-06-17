@@ -12,7 +12,7 @@ const CashFlowChart = dynamic(() => import('@/components/charts/CashFlowChart'),
 import ConnectPrompt from '@/components/ConnectPrompt'
 import InfoTip from '@/components/ui/InfoTip'
 import { formatCurrency, calcRunway } from '@/lib/utils'
-import { DollarSign, TrendingDown, Clock, Activity, Banknote } from 'lucide-react'
+import { DollarSign, TrendingDown, TrendingUp, Clock, Activity, Banknote } from 'lucide-react'
 import type { CashFlowDataPoint } from '@/types'
 
 interface Metrics {
@@ -107,7 +107,33 @@ export default function CashFlowPage() {
               ]}
             />
 
-            <div className="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Cash-flow statement (these reconcile: Cash In − Cash Out = Net Cash Flow) */}
+              <MetricCard
+                title="Cash In"
+                value={cf ? formatCurrency(cf.cashIn, true) : '—'}
+                icon={<TrendingUp size={16} style={{ color: '#10B981' }} />}
+                iconBg="rgba(16,185,129,0.15)"
+                subtitle="Trailing 12 mo"
+                tooltip="Total cash received across your connected accounts over the trailing 12 months, deduplicated against Stripe payouts."
+              />
+              <MetricCard
+                title="Cash Out"
+                value={cf ? formatCurrency(cf.cashOut, true) : '—'}
+                icon={<TrendingDown size={16} style={{ color: '#EF4444' }} />}
+                iconBg="rgba(239,68,68,0.15)"
+                subtitle="Trailing 12 mo"
+                tooltip="Total cash paid out over the trailing 12 months. Internal transfers and loan principal are excluded."
+              />
+              <MetricCard
+                title="Net Cash Flow"
+                value={cf ? formatCurrency(cf.netCashFlow, true) : '—'}
+                icon={<Activity size={16} style={{ color: cf && cf.netCashFlow >= 0 ? '#10B981' : '#EF4444' }} />}
+                iconBg="rgba(59,130,246,0.15)"
+                subtitle="Trailing 12 mo · In − Out"
+                tooltip="Cash received minus cash paid out over the trailing 12 months. Positive means your cash position grew."
+              />
+              {/* Position & runway */}
               <MetricCard
                 title="Cash Balance"
                 value={cash != null ? formatCurrency(cash, true) : '—'}
@@ -117,19 +143,12 @@ export default function CashFlowPage() {
                 tooltip="Total available cash across your connected checking/savings accounts (credit-card and loan balances excluded), synced via Plaid."
               />
               <MetricCard
-                title="Monthly Burn"
+                title="Net Burn"
                 value={cf && cf.burnRate > 0 ? formatCurrency(cf.burnRate, true) : 'Cash positive'}
                 icon={<TrendingDown size={16} style={{ color: '#F59E0B' }} />}
                 iconBg="rgba(245,158,11,0.15)"
+                subtitle="Avg monthly net outflow"
                 tooltip="Average net cash consumed per month across months where you spent more than you brought in. 'Cash positive' means inflows exceeded outflows."
-              />
-              <MetricCard
-                title="Net Cash Flow"
-                value={formatCurrency(thisMonthNet, true)}
-                icon={<Activity size={16} style={{ color: '#3B82F6' }} />}
-                iconBg="rgba(59,130,246,0.15)"
-                subtitle="This month"
-                tooltip="Cash received minus cash paid out this month. Positive means your cash position grew."
               />
               <MetricCard
                 title="Runway"
@@ -137,8 +156,8 @@ export default function CashFlowPage() {
                 suffix={cash == null || runway == null ? '' : ' months'}
                 icon={<Clock size={16} style={{ color: '#8B5CF6' }} />}
                 iconBg="rgba(139,92,246,0.15)"
-                subtitle={cash == null ? 'Cash balance unavailable' : runway == null ? 'Not burning cash' : 'At current burn'}
-                tooltip="Months until cash runs out at the current burn rate (Cash ÷ Monthly Burn). Infinite when you're cash-positive."
+                subtitle={cash == null ? 'Cash balance unavailable' : runway == null ? 'Not burning cash' : 'At current net burn'}
+                tooltip="Months until cash runs out at the current burn rate (Cash ÷ Net Burn). Infinite when you're cash-positive."
               />
             </div>
 

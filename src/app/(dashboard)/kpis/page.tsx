@@ -11,7 +11,7 @@ import { usePageData, fetchJson } from '@/hooks/usePageData'
 import InfoTip from '@/components/ui/InfoTip'
 import { formatCurrency } from '@/lib/utils'
 import { cac as calcCac, magicNumber } from '@/lib/metrics/marketing'
-import { Target, TrendingUp, Users, Activity, BarChart3, Percent, Lock, Megaphone, Zap } from 'lucide-react'
+import { Target, BarChart3, Percent, Lock, Megaphone, Zap } from 'lucide-react'
 import type { StripeMetrics } from '@/lib/integrations/stripe'
 
 interface Metrics {
@@ -51,18 +51,12 @@ export default function KPIsPage() {
 
   const anyConnected = !!(m?.sources && (m.sources.plaid || m.sources.stripe || m.sources.quickbooks || m.sources.xero))
   const is = m?.incomeStatement
-  const total = stripe?.customers?.total ?? 0
-  const arpu = total ? (stripe?.mrr ?? 0) / total : 0
 
+  // KPIs is the EFFICIENCY / unit-economics layer. Recurring-revenue counters
+  // (MRR, customers, churn, LTV) live on the Revenue tab — not duplicated here.
   const cards: { title: string; value: string; suffix?: string; subtitle?: string; icon: ReactNode; iconBg: string; tooltip: string }[] = []
   if (is?.netMargin != null)
     cards.push({ title: 'Net Margin', value: is.netMargin.toFixed(1), suffix: '%', icon: <Percent size={16} style={{ color: '#14B8A6' }} />, iconBg: 'rgba(20,184,166,0.15)', tooltip: 'Net income ÷ total income, year-to-date — from your transaction ledger.' })
-  if (stripe) {
-    cards.push({ title: 'MRR', value: formatCurrency(stripe.mrr ?? 0, true), subtitle: `ARR ${formatCurrency(stripe.arr ?? 0, true)}`, icon: <TrendingUp size={16} style={{ color: '#3B82F6' }} />, iconBg: 'rgba(59,130,246,0.15)', tooltip: 'Monthly Recurring Revenue from active Stripe subscriptions.' })
-    cards.push({ title: 'LTV', value: stripe.ltv != null ? formatCurrency(stripe.ltv, true) : '—', subtitle: `ARPU ${formatCurrency(arpu)}/mo`, icon: <BarChart3 size={16} style={{ color: '#8B5CF6' }} />, iconBg: 'rgba(139,92,246,0.15)', tooltip: 'Customer Lifetime Value — ARPU ÷ churn rate.' })
-    cards.push({ title: 'Churn Rate', value: `${((stripe.churnRate ?? 0) * 100).toFixed(2)}`, suffix: '%', icon: <Activity size={16} style={{ color: '#EF4444' }} />, iconBg: 'rgba(239,68,68,0.15)', tooltip: 'Monthly logo churn from Stripe.' })
-    cards.push({ title: 'Active Customers', value: total.toLocaleString(), icon: <Users size={16} style={{ color: '#10B981' }} />, iconBg: 'rgba(16,185,129,0.15)', tooltip: 'Customers with active Stripe subscriptions.' })
-  }
 
   // CAC / LTV-CAC / Magic Number — unlocked by ad-spend tagging + MRR snapshots.
   const marketing = m?.marketing?.thisMonth ?? 0
@@ -100,7 +94,7 @@ export default function KPIsPage() {
           <ConnectPrompt
             icon={<Target size={20} />}
             title="Connect your tools to see KPIs"
-            message="KPIs are computed from your live data — net margin from your ledger, and MRR/LTV/churn from Stripe. Connect a source to populate them."
+            message="KPIs are the efficiency metrics computed from your live data — net margin from your ledger, and CAC / LTV-CAC / Magic Number once ad spend is tagged. (MRR, customers and churn live on the Revenue tab.)"
             cta="Connect an integration"
           />
         ) : (
@@ -120,7 +114,7 @@ export default function KPIsPage() {
               </>
             ) : (
               <Card title="KPIs">
-                <p className="text-sm py-6 text-center" style={{ color: 'var(--color-text-muted)' }}>No KPI inputs yet — connect Stripe for subscription metrics, and transactions will drive your margins as they sync.</p>
+                <p className="text-sm py-6 text-center" style={{ color: 'var(--color-text-muted)' }}>No efficiency inputs yet — your net margin populates as transactions sync, and tagging ad spend unlocks CAC, LTV/CAC and Magic Number.</p>
               </Card>
             )}
 
