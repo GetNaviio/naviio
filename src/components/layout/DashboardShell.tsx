@@ -5,6 +5,7 @@ import Sidebar from './Sidebar'
 import MobileTabBar from './MobileTabBar'
 import type { ReactNode } from 'react'
 import { ThemeProvider } from './ThemeContext'
+import { PeriodProvider } from './PeriodContext'
 
 function ShellInner({ children }: { children: ReactNode }) {
   const { open, close } = useSidebar()
@@ -40,7 +41,9 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider>
       <ThemeProvider>
-        <ShellInner>{children}</ShellInner>
+        <PeriodProvider>
+          <ShellInner>{children}</ShellInner>
+        </PeriodProvider>
       </ThemeProvider>
     </SidebarProvider>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import MetricCard from '@/components/ui/MetricCard'
@@ -9,6 +9,7 @@ import ConnectPrompt from '@/components/ConnectPrompt'
 import { SkeletonGrid, ErrorState } from '@/components/ui/PageState'
 import { usePageData, fetchJson } from '@/hooks/usePageData'
 import { usePersistentState } from '@/hooks/usePersistentState'
+import { usePeriod } from '@/components/layout/PeriodContext'
 import dynamic from 'next/dynamic'
 import ChartSkeleton from '@/components/charts/ChartSkeleton'
 // Lazy-loaded — pulls in recharts; kept out of the initial bundle.
@@ -79,6 +80,7 @@ export default function PLPage() {
   // Shared month scope across P&L and Expenses — pick March on one tab,
   // the other follows. null = YTD (default). Survives navigation.
   const [sel, setSel] = usePersistentState<string | null>('dashboard:selectedMonth', null)
+  const { period } = usePeriod()
   // Provenance drill-down: which figure's transactions are open (null = closed).
   const [prov, setProv] = useState<ProvenanceQuery | null>(null)
 
@@ -107,6 +109,8 @@ export default function PLPage() {
 
   const byYm = useMemo(() => new Map(months24.map((r) => [r.month, r])), [months24])
   const currentYm = meta?.currentMonth ?? new Date().toISOString().slice(0, 7)
+  // The header period drives the scope: This Month → current month; YTD → full year.
+  useEffect(() => { setSel(period === 'month' ? currentYm : null) }, [period, currentYm, setSel])
 
   // ── Scope: the figures + comparatives the cards and statement render ──────
   const scope = useMemo(() => {
@@ -189,7 +193,7 @@ export default function PLPage() {
 
   return (
     <div>
-      <Header title="P&L Statement" subtitle="Profit & Loss — computed from your live transactions" />
+      <Header title="P&L Statement" subtitle="Profit & Loss — computed from your live transactions" showPeriod />
 
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {loading ? (

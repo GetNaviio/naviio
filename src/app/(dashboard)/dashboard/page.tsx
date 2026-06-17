@@ -5,6 +5,8 @@ import Header from '@/components/layout/Header'
 import NotificationsBell from '@/components/layout/NotificationsBell'
 import CommandPalette from '@/components/layout/CommandPalette'
 import { useTheme } from '@/components/layout/ThemeContext'
+import { usePeriod } from '@/components/layout/PeriodContext'
+import HeaderControls from '@/components/layout/HeaderControls'
 import MetricCard from '@/components/ui/MetricCard'
 import Card from '@/components/ui/Card'
 import dynamic from 'next/dynamic'
@@ -15,7 +17,7 @@ const NaviScore = dynamic(() => import('@/components/NaviScore'), { ssr: false, 
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import RefreshNowButton from '@/components/RefreshNowButton'
 import { formatCurrency } from '@/lib/utils'
-import { DollarSign, TrendingUp, TrendingDown, Clock, Sparkles, ArrowRight, Search, Moon, Sun, ChevronDown, Building2 } from 'lucide-react'
+import { DollarSign, TrendingUp, TrendingDown, Clock, Sparkles, ArrowRight, Search, Moon, Sun } from 'lucide-react'
 import type { CashFlowDataPoint } from '@/types'
 
 interface Metrics {
@@ -41,10 +43,9 @@ export default function DashboardPage() {
   // between server and browser (ICU versions, ticking clock) and breaks hydration.
   const [lastUpdated, setLastUpdated] = useState('')
   const { theme, toggleTheme } = useTheme()
+  const { period } = usePeriod()
   const [firstName, setFirstName] = useState('')
-  const [orgName, setOrgName] = useState('')
   const [greeting, setGreeting] = useState('Welcome')
-  const [period, setPeriod] = useState<'ytd' | 'month'>('ytd')
   const [searchOpen, setSearchOpen] = useState(false)
 
   // Date/greeting/identity are resolved after mount (formatting a live date during
@@ -56,10 +57,6 @@ export default function DashboardPage() {
     fetch('/api/auth/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
       const n = (d?.user?.name || d?.user?.email || '').toString().trim()
       if (n) setFirstName(n.split(/[\s@]+/)[0])
-    }).catch(() => {})
-    fetch('/api/org/switch').then((r) => (r.ok ? r.json() : null)).then((d) => {
-      const active = (d?.orgs || []).find((o: { active?: boolean }) => o.active)
-      if (active?.name) setOrgName(active.name)
     }).catch(() => {})
     const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setSearchOpen((v) => !v) } }
     const onOpenSearch = () => setSearchOpen(true)
@@ -237,32 +234,7 @@ export default function DashboardPage() {
             {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
           </button>
           <NotificationsBell />
-          <div className="flex items-center gap-3 pl-3 ml-1 border-l" style={{ borderColor: 'var(--color-surface-border)' }}>
-            <div className="text-right">
-              {orgName && (
-                <div className="flex items-center justify-end gap-1 text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                  <Building2 size={13} style={{ color: 'var(--color-text-muted)' }} />
-                  {orgName}
-                </div>
-              )}
-              <div className="relative inline-flex items-center">
-                <select
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value as 'ytd' | 'month')}
-                  className="appearance-none bg-transparent text-xs pr-4 cursor-pointer focus:outline-none"
-                  style={{ color: 'var(--color-text-secondary)' }}
-                  aria-label="Reporting period"
-                >
-                  <option value="ytd">Year to Date</option>
-                  <option value="month">This Month</option>
-                </select>
-                <ChevronDown size={12} className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-muted)' }} />
-              </div>
-            </div>
-            <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ background: 'linear-gradient(135deg,#3B82F6,#14B8A6)', color: '#fff' }}>
-              {(firstName || 'U').charAt(0).toUpperCase()}
-            </div>
-          </div>
+          <HeaderControls showPeriod />
         </div>
         <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
       </header>

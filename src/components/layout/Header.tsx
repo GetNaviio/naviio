@@ -7,13 +7,16 @@ import { useTheme } from './ThemeContext'
 import CommandPalette from './CommandPalette'
 import NotificationsBell from './NotificationsBell'
 import BrandMenu from './BrandMenu'
+import HeaderControls from './HeaderControls'
 
 interface HeaderProps {
   title?: string
   subtitle?: string
+  /** Show the YTD / This-Month selector in the top-right cluster (data pages). */
+  showPeriod?: boolean
 }
 
-export default function Header({ title, subtitle }: HeaderProps) {
+export default function Header({ title, subtitle, showPeriod = false }: HeaderProps) {
   const router = useRouter()
   const [refreshing, setRefreshing] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -98,6 +101,9 @@ export default function Header({ title, subtitle }: HeaderProps) {
             <kbd className="text-[10px] px-1.5 py-0.5 rounded ml-1" style={{ border: '1px solid var(--color-surface-border)', color: 'var(--color-text-muted)' }}>⌘K</kbd>
           </button>
         </div>
+
+        {/* Org / entity switcher + period + profile — aligns every tab with the Overview */}
+        <HeaderControls showPeriod={showPeriod} />
       </div>
 
       <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />

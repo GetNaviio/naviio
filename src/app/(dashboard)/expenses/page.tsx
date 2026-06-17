@@ -6,6 +6,7 @@ import Card from '@/components/ui/Card'
 import NaviBadge from '@/components/ui/NaviBadge'
 import MetricCard from '@/components/ui/MetricCard'
 import MobileHero from '@/components/dashboard/MobileHero'
+import { usePeriod } from '@/components/layout/PeriodContext'
 import dynamic from 'next/dynamic'
 import ChartSkeleton from '@/components/charts/ChartSkeleton'
 // Lazy-loaded — pulls in recharts; kept out of the initial bundle.
@@ -61,6 +62,7 @@ export default function ExpensesPage() {
   // Shared month scope across P&L and Expenses — pick March on one tab,
   // the other follows. null = YTD (default). Survives navigation.
   const [sel, setSel] = usePersistentState<string | null>('dashboard:selectedMonth', null)
+  const { period } = usePeriod()
   const tableRef = useRef<HTMLDivElement>(null)
   // Provenance drill-down: which figure's transactions are open (null = closed).
   const [prov, setProv] = useState<ProvenanceQuery | null>(null)
@@ -108,6 +110,8 @@ export default function ExpensesPage() {
   const connected = !!(m?.sources?.plaid || m?.sources?.stripe)
   const byYm = useMemo(() => new Map(months24.map((r) => [r.month, r])), [months24])
   const currentYm = meta?.currentMonth ?? new Date().toISOString().slice(0, 7)
+  // The header period drives the scope: This Month → current month; YTD → full year.
+  useEffect(() => { setSel(period === 'month' ? currentYm : null) }, [period, currentYm, setSel])
 
   // ── Scope: which period the cards/chart/categories describe ───────────────
   const scope = useMemo(() => {
@@ -200,7 +204,7 @@ export default function ExpensesPage() {
 
   return (
     <div>
-      <Header title="Expenses" subtitle="Auto-categorized transactions from your live bank & payment activity" />
+      <Header title="Expenses" subtitle="Auto-categorized transactions from your live bank & payment activity" showPeriod />
 
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {loading ? (
