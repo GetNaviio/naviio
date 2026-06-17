@@ -52,7 +52,7 @@ export default function NaviDecisionDrawer({ answer, question, onClose }: { answ
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="navi-print relative h-full w-full max-w-md flex flex-col shadow-2xl outline-none"
+        className="navi-print relative h-full w-full max-w-2xl flex flex-col shadow-2xl outline-none"
         style={{ backgroundColor: 'var(--color-surface-card)', borderLeft: '1px solid var(--color-surface-border)' }}
       >
         {/* Header */}
@@ -93,7 +93,7 @@ export default function NaviDecisionDrawer({ answer, question, onClose }: { answ
 
           {/* Figures */}
           {answer.stats.length > 0 && (
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
               {answer.stats.map((s) => (
                 <div key={s.label} className="rounded-xl p-3" style={{ backgroundColor: 'var(--color-surface-card-hover)', border: '1px solid var(--color-surface-border)' }}>
                   <p className="text-[10px] uppercase tracking-wide truncate" style={{ color: 'var(--color-text-muted)' }}>{s.label}</p>
