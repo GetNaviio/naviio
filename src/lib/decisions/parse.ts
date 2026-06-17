@@ -18,7 +18,8 @@ const MULT: Record<string, number> = {
  * and "15 units" are not mistaken for dollars. */
 export function parseMoney(text: string): number[] {
   const out: number[] = []
-  const re = /(\$)?\s?(\d[\d,]*(?:\.\d+)?)\s*(k|mm|m|thousand|million|bn|billion)?/gi
+  // Suffix must be its own token (\b) so the "m" in "machine" isn't read as "million".
+  const re = /(\$)?\s?(\d[\d,]*(?:\.\d+)?)(?:\s*(k|mm|m|thousand|million|bn|billion))?\b/gi
   let mt: RegExpExecArray | null
   while ((mt = re.exec(text)) !== null) {
     const hasDollar = !!mt[1]
