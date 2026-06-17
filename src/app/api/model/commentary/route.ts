@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { withOrg } from '@/lib/api/with-org'
+import { llmComplete, hasLLM } from '@/lib/ai/complete'
 import { prisma } from '@/lib/prisma'
 import { ymOfDate } from '@/lib/model/workforce'
 import { chargeCredits, addCredits, InsufficientCreditsError } from '@/lib/credits/account'
@@ -33,8 +33,7 @@ export const GET = withOrg(async (_request, { orgId }) => {
 /** AI Commentary Writer — board-ready analysis of the live financials (metered, 2 credits). */
 export const POST = withOrg(async (_request, { orgId }) => {
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return Response.json({ error: 'AI is not configured (no ANTHROPIC_API_KEY).' }, { status: 503 })
+  if (!hasLLM()) return Response.json({ error: 'AI is not configured (no model provider key).' }, { status: 503 })
 
   const ledger = await loadPrimaryLedger(orgId, startOfYearUTC())
   if (ledger.length === 0) {
@@ -66,10 +65,8 @@ export const POST = withOrg(async (_request, { orgId }) => {
   }
 
   try {
-    const client = new Anthropic({ apiKey })
-    const msg = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 900,
+    const text = await llmComplete({
+      maxTokens: 900,
       system:
         'You are Navi, a CFO-level analyst writing board-ready commentary for a small-business owner. ' +
         'Write a concise, specific executive commentary on the financials provided, covering: overall performance, ' +
@@ -77,9 +74,12 @@ export const POST = withOrg(async (_request, { orgId }) => {
         'given — never invent numbers. This is cash basis; note that where relevant. Plain text only: no markdown, no ' +
         'asterisks, no "#" headers, no emojis. Organize into short labeled sections (a plain label line ending in a colon) ' +
         'separated by a single blank line.',
-      messages: [{ role: 'user', content: snapshot }],
+      prompt: snapshot,
     })
-    const text = msg.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('')
+    if (!text) {
+      await addCredits(orgId, costOf('commentary'), 'refund', { feature: 'commentary' }).catch(() => {})
+      return Response.json({ error: 'Could not generate commentary — you were not charged.' }, { status: 502 })
+    }
     const commentary = cleanNaviText(text)
     // Persist — the user paid for this; it must still be there when they come
     // back. A save failure must not eat the response they were charged for.
