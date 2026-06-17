@@ -92,13 +92,15 @@ export const POST = withOrg(async (request, { user, orgId }) => {
     // Persist the decision — the proprietary, compounding dataset behind the moat
     // (question, inputs, verdict; outcome captured later). Raw insert so it works
     // without regenerating the Prisma client in CI; never blocks the response.
+    const decisionId = crypto.randomUUID()
     await prisma.$executeRaw`
       INSERT INTO "DecisionLog" ("id","orgId","userId","template","question","verdict","headline","confidence","params","answer","createdAt")
-      VALUES (${crypto.randomUUID()}, ${orgId}, ${user.id}, ${template}, ${questionText || null}, ${answer.verdict}, ${answer.headline}, ${answer.confidence}, ${JSON.stringify(params)}::jsonb, ${JSON.stringify(answer)}::jsonb, now())
+      VALUES (${decisionId}, ${orgId}, ${user.id}, ${template}, ${questionText || null}, ${answer.verdict}, ${answer.headline}, ${answer.confidence}, ${JSON.stringify(params)}::jsonb, ${JSON.stringify(answer)}::jsonb, now())
     `.catch((e: unknown) => console.error('decision log persist failed (response still returned):', e))
 
     return Response.json({
       answer,
+      decisionId,
       context: {
         cashBalance: ctx.cashBalance,
         runwayMonths: ctx.runwayMonths,
@@ -131,5 +133,33 @@ export const GET = withOrg(async (_request, { orgId }) => {
   } catch {
     // Table may not exist yet (migration pending) — degrade gracefully.
     return Response.json({ decisions: [] })
+  }
+})
+
+const OUTCOMES = ['proceeded', 'deferred', 'declined'] as const
+
+/** Record what the user actually did — closes the predicted-vs-actual loop. */
+export const PATCH = withOrg(async (request, { orgId }) => {
+  let body: { id?: string; outcome?: string; note?: string }
+  try { body = await request.json() } catch { return Response.json({ error: 'Invalid JSON.' }, { status: 400 }) }
+
+  const id = typeof body.id === 'string' ? body.id : ''
+  const outcome = body.outcome ?? ''
+  if (!id || !OUTCOMES.includes(outcome as (typeof OUTCOMES)[number])) {
+    return Response.json({ error: `id and outcome (${OUTCOMES.join(' | ')}) are required.` }, { status: 400 })
+  }
+  const note = typeof body.note === 'string' ? body.note.slice(0, 500) : null
+
+  try {
+    // Scoped to the org so a user can only update their own org's decisions.
+    const affected = await prisma.$executeRaw`
+      UPDATE "DecisionLog" SET "outcome" = ${outcome}, "outcomeNote" = ${note}, "outcomeAt" = now()
+      WHERE "id" = ${id} AND "orgId" = ${orgId}
+    `
+    if (affected === 0) return Response.json({ error: 'Decision not found.' }, { status: 404 })
+    return Response.json({ ok: true })
+  } catch (e) {
+    console.error('outcome update failed:', e)
+    return Response.json({ error: 'Could not record the outcome.' }, { status: 200 })
   }
 })

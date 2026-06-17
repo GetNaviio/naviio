@@ -7,9 +7,12 @@
  *   key considerations → next steps / recommendation.
  * Every figure comes from the engine (answer payload); nothing is invented.
  */
+import { useState } from 'react'
 import { X, CheckCircle2, XCircle, AlertCircle, Check, Sparkles, Target, Download } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import type { DecisionAnswer } from '@/lib/decisions/types'
+
+const OUTCOME_LABEL: Record<string, string> = { proceeded: 'Went ahead', deferred: 'Holding off', declined: "Didn't" }
 
 const verdictIcon = (v: DecisionAnswer['verdict'], size = 20) =>
   v === 'yes' ? <CheckCircle2 size={size} style={{ color: '#10B981' }} />
@@ -41,9 +44,24 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-text-muted)' }}>{children}</p>
 }
 
-export default function NaviDecisionDrawer({ answer, question, onClose }: { answer: DecisionAnswer; question: string; onClose: () => void }) {
+export default function NaviDecisionDrawer({ answer, question, decisionId, onClose }: { answer: DecisionAnswer; question: string; decisionId?: string; onClose: () => void }) {
   const panelRef = useFocusTrap<HTMLDivElement>(true, onClose)
   const isRunway = answer.template === 'runway_path'
+  const [recorded, setRecorded] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  async function recordOutcome(outcome: string) {
+    if (!decisionId || saving) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/navi/decision', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: decisionId, outcome }),
+      })
+      if (res.ok) setRecorded(outcome)
+    } catch { /* ignore — non-blocking */ }
+    finally { setSaving(false) }
+  }
 
   return (
     <div className="fixed inset-0 z-[60] flex justify-end" role="dialog" aria-modal="true" aria-label="Navi decision analysis">
@@ -154,7 +172,26 @@ export default function NaviDecisionDrawer({ answer, question, onClose }: { answ
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t text-xs space-y-1" style={{ borderColor: 'var(--color-surface-border)', color: 'var(--color-text-muted)' }}>
+        <div className="px-5 py-3 border-t text-xs space-y-2" style={{ borderColor: 'var(--color-surface-border)', color: 'var(--color-text-muted)' }}>
+          {/* Outcome capture — closes the predicted-vs-actual loop. */}
+          {decisionId && (
+            recorded ? (
+              <p className="flex items-center gap-1.5 no-print" style={{ color: '#10B981' }}>
+                <Check size={12} /> Marked: {OUTCOME_LABEL[recorded] ?? recorded}. Navi will learn from it.
+              </p>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap no-print">
+                <span style={{ color: 'var(--color-text-secondary)' }}>Did you act on this?</span>
+                {(['proceeded', 'deferred', 'declined'] as const).map((o) => (
+                  <button key={o} onClick={() => recordOutcome(o)} disabled={saving}
+                    className="px-2 py-1 rounded-lg transition-colors hover:bg-white/5 disabled:opacity-50"
+                    style={{ border: '1px solid var(--color-surface-border)', color: 'var(--color-text-secondary)' }}>
+                    {OUTCOME_LABEL[o]}
+                  </button>
+                ))}
+              </div>
+            )
+          )}
           {isRunway && (
             <button onClick={() => window.print()} className="no-print flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg mb-1.5" style={{ color: 'var(--color-text-secondary)', border: '1px solid var(--color-surface-border)' }}>
               <Download size={13} /> Export for board

@@ -30,6 +30,7 @@ interface Message {
   /** When Navi answers a decision question, the grounded result opens as a drill-down. */
   decision?: DecisionAnswer
   question?: string
+  decisionId?: string
 }
 
 const verdictDot = (v: DecisionAnswer['verdict']) =>
@@ -79,7 +80,7 @@ export default function ChatBot() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [outOfCredits, setOutOfCredits] = useState(false)
-  const [decisionView, setDecisionView] = useState<{ answer: DecisionAnswer; question: string } | null>(null)
+  const [decisionView, setDecisionView] = useState<{ answer: DecisionAnswer; question: string; decisionId?: string } | null>(null)
   // When a decision needs more inputs, Navi collects them across turns.
   const [pending, setPending] = useState<{ template: DecisionTemplate; params: Record<string, unknown>; question: string } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -128,8 +129,9 @@ export default function ChatBot() {
         const dData = await dRes.json().catch(() => ({}))
         if (dData?.answer) {
           const ans = dData.answer as DecisionAnswer
-          setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: ans.headline, decision: ans, question: q, streaming: false } : m))
-          setDecisionView({ answer: ans, question: q })
+          const did = typeof dData.decisionId === 'string' ? dData.decisionId : undefined
+          setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: ans.headline, decision: ans, question: q, decisionId: did, streaming: false } : m))
+          setDecisionView({ answer: ans, question: q, decisionId: did })
           return 'ok'
         }
         return 'none'
@@ -325,7 +327,7 @@ export default function ChatBot() {
                     <Bot size={12} style={{ color: '#00C49F' }} />
                   </div>
                   <button
-                    onClick={() => setDecisionView({ answer: d, question: msg.question ?? '' })}
+                    onClick={() => setDecisionView({ answer: d, question: msg.question ?? '', decisionId: msg.decisionId })}
                     className="text-left px-3.5 py-2.5 rounded-2xl max-w-[85%] transition-colors hover:bg-white/5"
                     style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)', borderBottomLeftRadius: 4 }}
                   >
@@ -502,6 +504,7 @@ export default function ChatBot() {
         <NaviDecisionDrawer
           answer={decisionView.answer}
           question={decisionView.question}
+          decisionId={decisionView.decisionId}
           onClose={() => setDecisionView(null)}
         />
       )}
