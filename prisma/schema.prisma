@@ -215,10 +215,11 @@ model DecisionLog {
   params      Json     // the inputs/assumptions used
   answer      Json     // full answer-contract snapshot
   // Outcome loop (filled in later): did the user act, and what happened?
-  outcome     String?  // e.g. 'proceeded' | 'declined' | 'deferred'
-  outcomeNote String?
-  outcomeAt   DateTime?
-  createdAt   DateTime @default(now())
+  outcome      String?  // e.g. 'proceeded' | 'declined' | 'deferred'
+  outcomeNote  String?
+  outcomeAt    DateTime?
+  followedUpAt DateTime? // when Navi prompted for the outcome (dedup for the cron)
+  createdAt    DateTime @default(now())
 
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
