@@ -143,7 +143,23 @@ export default function ChatBot() {
 
     // 1) Mid-collection: Navi is gathering inputs for a decision — read this reply.
     if (pending) {
-      const filled = extractSlots(pending.template, missingParams(pending.template, pending.params), clean)
+      const stillMissing = missingParams(pending.template, pending.params)
+      let filled = extractSlots(pending.template, stillMissing, clean)
+      // LLM fallback for free-form replies the regex reader can't parse.
+      if (Object.keys(filled).length === 0) {
+        try {
+          const exRes = await fetch('/api/navi/extract', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ template: pending.template, missing: stillMissing, text: clean }), signal,
+          })
+          if (exRes.ok) {
+            const ex = await exRes.json().catch(() => ({}))
+            if (ex?.slots && Object.keys(ex.slots).length > 0) filled = ex.slots as Record<string, number>
+          }
+        } catch (err: unknown) {
+          if (err instanceof Error && err.name === 'AbortError') { setLoading(false); return }
+        }
+      }
       if (Object.keys(filled).length > 0) {
         const merged = { ...pending.params, ...filled }
         const left = missingParams(pending.template, merged)
