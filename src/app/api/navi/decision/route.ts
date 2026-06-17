@@ -101,6 +101,7 @@ export const POST = withOrg(async (request, { user, orgId }) => {
     return Response.json({
       answer,
       decisionId,
+      params,
       context: {
         cashBalance: ctx.cashBalance,
         runwayMonths: ctx.runwayMonths,

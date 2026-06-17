@@ -36,6 +36,9 @@ function systemPrompt(allowed: Set<string>): string {
     'Output ONLY a minified JSON object — no prose, no code fences. ' +
     'Include a key ONLY if the user clearly stated that value; never guess, infer, or invent a number. ' +
     'Convert words to numbers ("two grand" → 2000, "two-thirds" → 0.67, "fifteen a month" → 15). ' +
+    'Treat each number the user states as a separate value tied to its own key; NEVER concatenate or merge ' +
+    'two adjacent numbers into one. For example "$2,000 for 70 clients" is amount 2000 and unitsPerMonth 70 — ' +
+    'never 200070. If a number is ambiguous about which key it belongs to, omit it rather than guess. ' +
     `Allowed keys and units:\n${keyLines}`
   )
 }
