@@ -115,3 +115,59 @@ export function parseDecisionQuestion(text: string): ParsedDecision {
 
   return { template, params, missing, confidence, isDecision }
 }
+
+// ── Multi-turn slot filling ─────────────────────────────────────────────────
+
+/** Params each template needs before it can be computed. */
+export const REQUIRED: Record<DecisionTemplate, string[]> = {
+  affordability: ['amount'],
+  capex: ['price', 'avgRevenuePerUnit', 'grossMarginPct', 'unitsPerMonth'],
+  runway_path: [],
+}
+
+/** Which required params are still absent/invalid in a (partial) param set. */
+export function missingParams(template: DecisionTemplate, params: Record<string, unknown>): string[] {
+  return REQUIRED[template].filter((k) => {
+    const v = params[k]
+    return typeof v !== 'number' || !Number.isFinite(v)
+  })
+}
+
+/**
+ * Extract the values a user gave in a follow-up reply for the slots Navi is
+ * still missing. Only reads numbers the user stated (gross margin as a %,
+ * revenue as a $ amount, volume as a count) — never invents anything.
+ */
+export function extractSlots(template: DecisionTemplate, missing: string[], text: string): Record<string, number> {
+  const out: Record<string, number> = {}
+  const money = parseMoney(text)
+  const pctMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:%|percent)/i)
+  const recurring = /\/\s*mo|per month|monthly|a month/i.test(text)
+
+  if (template === 'affordability') {
+    if (money[0] != null) {
+      if (recurring) { out.recurringMonthly = money[0]; out.amount = 0 }
+      else out.amount = money[0]
+    }
+    return out
+  }
+
+  if (template === 'capex') {
+    if (missing.includes('price') && money[0] != null) out.price = money[0]
+    if (missing.includes('grossMarginPct') && pctMatch) out.grossMarginPct = parseFloat(pctMatch[1]) / 100
+    if (missing.includes('avgRevenuePerUnit')) {
+      // Prefer a $ amount that isn't the price we just took.
+      const rev = money.find((m) => m !== out.price)
+      if (rev != null) out.avgRevenuePerUnit = rev
+    }
+    if (missing.includes('unitsPerMonth')) {
+      const cue = text.match(/(\d{1,4})\s*(?:per month|\/\s*mo|a month|monthly|treatments?|units?|sessions?|clients?)/i)
+      if (cue) out.unitsPerMonth = parseInt(cue[1], 10)
+      else if (money.length === 0 && !pctMatch) {
+        const bare = text.trim().match(/^\s*(\d{1,4})\s*$/)
+        if (bare) out.unitsPerMonth = parseInt(bare[1], 10)
+      }
+    }
+  }
+  return out
+}

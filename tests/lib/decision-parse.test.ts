@@ -2,7 +2,7 @@
  * Natural-language → decision intent. Guards that a typed question routes to the
  * right template and extracts only the numbers the user actually stated.
  */
-import { parseDecisionQuestion, parseMoney } from '@/lib/decisions/parse'
+import { parseDecisionQuestion, parseMoney, extractSlots, missingParams } from '@/lib/decisions/parse'
 
 describe('parseMoney', () => {
   it('reads $, suffixes, and large bare numbers — but not small bare numbers', () => {
@@ -40,5 +40,35 @@ describe('parseDecisionQuestion', () => {
     const r = parseDecisionQuestion('do we have room for a $50,000 spend')
     expect(r.template).toBe('affordability')
     expect(r.params.amount).toBe(50000)
+  })
+})
+
+describe('multi-turn slot filling', () => {
+  const missing = ['avgRevenuePerUnit', 'grossMarginPct', 'unitsPerMonth']
+
+  it('fills all capex unit-economics from one reply', () => {
+    const f = extractSlots('capex', missing, 'about $2,000 per treatment, 68% margin, 15 a month')
+    expect(f.avgRevenuePerUnit).toBe(2000)
+    expect(f.grossMarginPct).toBeCloseTo(0.68, 4)
+    expect(f.unitsPerMonth).toBe(15)
+    expect(missingParams('capex', { price: 180000, ...f })).toHaveLength(0)
+  })
+
+  it('fills capex slots piecemeal across turns', () => {
+    const p: Record<string, unknown> = { price: 60000 }
+    Object.assign(p, extractSlots('capex', missingParams('capex', p), '2500'))
+    Object.assign(p, extractSlots('capex', missingParams('capex', p), '70%'))
+    Object.assign(p, extractSlots('capex', missingParams('capex', p), '20'))
+    expect(p.avgRevenuePerUnit).toBe(2500)
+    expect(p.grossMarginPct).toBeCloseTo(0.70, 4)
+    expect(p.unitsPerMonth).toBe(20)
+    expect(missingParams('capex', p)).toHaveLength(0)
+  })
+
+  it('reads a monthly amount as recurring for affordability', () => {
+    const f = extractSlots('affordability', ['amount'], '$5,000 per month')
+    expect(f.recurringMonthly).toBe(5000)
+    expect(f.amount).toBe(0)
+    expect(missingParams('affordability', f)).toHaveLength(0)
   })
 })

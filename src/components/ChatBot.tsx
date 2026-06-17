@@ -4,9 +4,23 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { MessageSquare, X, Send, Bot, Sparkles, TrendingUp, DollarSign, PieChart, Calendar, RotateCcw, Mic, ArrowRight, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { useVoiceInput } from '@/hooks/useVoiceInput'
 import { cleanNaviText } from '@/lib/naviFormat'
-import { parseDecisionQuestion } from '@/lib/decisions/parse'
+import { parseDecisionQuestion, extractSlots, missingParams } from '@/lib/decisions/parse'
 import NaviDecisionDrawer from '@/components/navi/NaviDecisionDrawer'
-import type { DecisionAnswer } from '@/lib/decisions/types'
+import type { DecisionAnswer, DecisionTemplate } from '@/lib/decisions/types'
+
+// Friendly phrasing for the inputs Navi gathers when a decision needs more detail.
+const SLOT_ASK: Record<string, string> = {
+  price: 'the price',
+  avgRevenuePerUnit: 'your average revenue per unit (per client / job / treatment)',
+  grossMarginPct: 'your gross margin %',
+  unitsPerMonth: 'how many you expect to do per month',
+  amount: 'the amount (and whether it’s one-time or monthly)',
+}
+function askFor(missing: string[]): string {
+  const parts = missing.map((k) => SLOT_ASK[k] ?? k)
+  const list = parts.length <= 1 ? parts[0] : `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
+  return `To run that, tell me ${list}.`
+}
 
 interface Message {
   id: string
@@ -66,6 +80,8 @@ export default function ChatBot() {
   const [loading, setLoading] = useState(false)
   const [outOfCredits, setOutOfCredits] = useState(false)
   const [decisionView, setDecisionView] = useState<{ answer: DecisionAnswer; question: string } | null>(null)
+  // When a decision needs more inputs, Navi collects them across turns.
+  const [pending, setPending] = useState<{ template: DecisionTemplate; params: Record<string, unknown>; question: string } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -96,35 +112,68 @@ export default function ChatBot() {
 
     abortRef.current = new AbortController()
     const signal = abortRef.current.signal
+    const clean = text.trim()
 
-    // Navi decides: a genuine, computable decision question gets a grounded
-    // decision card (numbers from the engine, never invented). Everything else —
-    // including decision questions that still need inputs — is a normal reply,
-    // where Navi can ask for what it needs.
-    const parsed = parseDecisionQuestion(text.trim())
-    if (parsed.isDecision && parsed.missing.length === 0) {
+    // Run a fully-specified decision through the engine; render the drill-down.
+    const runDecision = async (body: Record<string, unknown>, q: string): Promise<'ok' | 'credits' | 'none' | 'abort'> => {
       try {
         const dRes = await fetch('/api/navi/decision', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: text.trim() }), signal,
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal,
         })
         if (dRes.status === 402) {
           setOutOfCredits(true)
           setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: "You're out of credits — reload to keep asking Navi.", streaming: false } : m))
-          setLoading(false); return
+          return 'credits'
         }
         const dData = await dRes.json().catch(() => ({}))
         if (dData?.answer) {
           const ans = dData.answer as DecisionAnswer
-          setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: ans.headline, decision: ans, question: text.trim(), streaming: false } : m))
-          setDecisionView({ answer: ans, question: text.trim() })  // opens the drill-down
+          setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: ans.headline, decision: ans, question: q, streaming: false } : m))
+          setDecisionView({ answer: ans, question: q })
+          return 'ok'
+        }
+        return 'none'
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return 'abort'
+        return 'none'
+      }
+    }
+    const sayAssistant = (content: string) =>
+      setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content, streaming: false } : m))
+
+    // 1) Mid-collection: Navi is gathering inputs for a decision — read this reply.
+    if (pending) {
+      const filled = extractSlots(pending.template, missingParams(pending.template, pending.params), clean)
+      if (Object.keys(filled).length > 0) {
+        const merged = { ...pending.params, ...filled }
+        const left = missingParams(pending.template, merged)
+        if (left.length === 0) {
+          const r = await runDecision({ template: pending.template, params: merged }, pending.question)
+          if (r === 'abort') { setLoading(false); return }
+          setPending(null)
+          if (r === 'ok' || r === 'credits') { setLoading(false); return }
+          // 'none' → fall through to a normal chat reply
+        } else {
+          setPending({ ...pending, params: merged })
+          sayAssistant(`Got it. ${askFor(left)}`)
           setLoading(false); return
         }
-        // No grounded answer (e.g. missing inputs) → fall through to a chat reply.
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') { setLoading(false); return }
-        // fall through to chat
+      } else {
+        setPending(null)  // no usable values → user moved on; drop the ask
       }
+    }
+
+    // 2) A new decision question. Computable → drill-down; missing inputs → ask for them.
+    const parsed = parseDecisionQuestion(clean)
+    if (parsed.isDecision && parsed.missing.length === 0) {
+      const r = await runDecision({ question: clean }, clean)
+      if (r === 'abort') { setLoading(false); return }
+      if (r === 'ok' || r === 'credits') { setLoading(false); return }
+      // 'none' → fall through to chat
+    } else if (parsed.isDecision && parsed.missing.length > 0) {
+      setPending({ template: parsed.template, params: parsed.params as Record<string, unknown>, question: clean })
+      sayAssistant(`Happy to run that. ${askFor(parsed.missing)}`)
+      setLoading(false); return
     }
 
     const history = [
@@ -181,7 +230,7 @@ export default function ChatBot() {
     } finally {
       setLoading(false)
     }
-  }, [messages, loading])
+  }, [messages, loading, pending])
 
   // Voice input — speak to Navi; the final transcript is sent automatically.
   const voice = useVoiceInput((text) => send(text))
@@ -194,6 +243,7 @@ export default function ChatBot() {
     abortRef.current?.abort()
     setMessages([WELCOME])
     setLoading(false)
+    setPending(null)
   }
 
   const buyCredits = async () => {
