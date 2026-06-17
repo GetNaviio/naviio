@@ -4,12 +4,17 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { MessageSquare, X, Send, Bot, Sparkles, TrendingUp, DollarSign, PieChart, Calendar, RotateCcw, Mic } from 'lucide-react'
 import { useVoiceInput } from '@/hooks/useVoiceInput'
 import { cleanNaviText } from '@/lib/naviFormat'
+import { parseDecisionQuestion } from '@/lib/decisions/parse'
+import NaviDecisionCard from '@/components/navi/NaviDecisionCard'
+import type { DecisionAnswer } from '@/lib/decisions/types'
 
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
   streaming?: boolean
+  /** When Navi answers a decision question, the grounded result renders as a card. */
+  decision?: DecisionAnswer
 }
 
 const SUGGESTED = [
@@ -82,12 +87,42 @@ export default function ChatBot() {
     setLoading(true)
     setOutOfCredits(false)
 
+    abortRef.current = new AbortController()
+    const signal = abortRef.current.signal
+
+    // Navi decides: a genuine, computable decision question gets a grounded
+    // decision card (numbers from the engine, never invented). Everything else —
+    // including decision questions that still need inputs — is a normal reply,
+    // where Navi can ask for what it needs.
+    const parsed = parseDecisionQuestion(text.trim())
+    if (parsed.isDecision && parsed.missing.length === 0) {
+      try {
+        const dRes = await fetch('/api/navi/decision', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: text.trim() }), signal,
+        })
+        if (dRes.status === 402) {
+          setOutOfCredits(true)
+          setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: "You're out of credits — reload to keep asking Navi.", streaming: false } : m))
+          setLoading(false); return
+        }
+        const dData = await dRes.json().catch(() => ({}))
+        if (dData?.answer) {
+          setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: dData.answer.headline, decision: dData.answer as DecisionAnswer, streaming: false } : m))
+          setLoading(false); return
+        }
+        // No grounded answer (e.g. missing inputs) → fall through to a chat reply.
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') { setLoading(false); return }
+        // fall through to chat
+      }
+    }
+
     const history = [
       ...messages.filter((m) => !m.streaming).map((m) => ({ role: m.role, content: m.content })),
       { role: 'user', content: text.trim() },
     ]
 
-    abortRef.current = new AbortController()
     try {
       const res = await fetch('/api/insights/chat', {
         method: 'POST',
@@ -205,6 +240,10 @@ export default function ChatBot() {
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {messages.map((msg) => {
             const isUser = msg.role === 'user'
+            // Decision answers render as the full grounded card, not a chat bubble.
+            if (msg.decision) {
+              return <div key={msg.id} className="w-full"><NaviDecisionCard answer={msg.decision} /></div>
+            }
             return (
               <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'items-end gap-2'}`}>
                 {!isUser && (

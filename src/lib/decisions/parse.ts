@@ -65,6 +65,9 @@ export interface ParsedDecision {
   /** Required params the user didn't provide — the UI should ask for these. */
   missing: string[]
   confidence: 'high' | 'medium' | 'low'
+  /** True only when the text shows a real decision cue (afford / buy / runway…),
+   * not the fallback. Lets the chat decide between a simple reply and a card. */
+  isDecision: boolean
 }
 
 export function parseDecisionQuestion(text: string): ParsedDecision {
@@ -74,11 +77,14 @@ export function parseDecisionQuestion(text: string): ParsedDecision {
   const hasApr = /\bapr\b|financ/i.test(text)
 
   // Classify template (capex wins when financing/equipment cues are present).
+  // `isDecision` is true only when a real cue matched — not the fallback — so the
+  // chat doesn't turn an ordinary question ("what are my tax savings?") into a card.
   let template: DecisionTemplate
+  let isDecision = true
   if (RE.capex.test(text) && (money.length > 0 || hasApr)) template = 'capex'
   else if (RE.afford.test(text)) template = 'affordability'
   else if (RE.runway.test(text)) template = 'runway_path'
-  else template = money.length > 0 ? 'affordability' : 'runway_path'
+  else { template = money.length > 0 ? 'affordability' : 'runway_path'; isDecision = money.length > 0 }
 
   const params: Record<string, number | string | undefined> = {}
   const missing: string[] = []
@@ -106,5 +112,5 @@ export function parseDecisionQuestion(text: string): ParsedDecision {
   const confidence: ParsedDecision['confidence'] =
     missing.length === 0 ? 'high' : missing.length <= 1 ? 'medium' : 'low'
 
-  return { template, params, missing, confidence }
+  return { template, params, missing, confidence, isDecision }
 }

@@ -4,14 +4,13 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, TrendingUp, Waves, BarChart3,
-  CreditCard, Target, Plug, Bell, ChevronRight, Calculator, X, Telescope, Settings, LineChart, Sparkles,
+  CreditCard, Target, Plug, Bell, ChevronRight, Calculator, X, Telescope, Settings, LineChart,
 } from 'lucide-react'
 import { useTheme } from '@/components/layout/ThemeContext'
 import OrgSwitcher from '@/components/layout/OrgSwitcher'
 
 const nav = [
   { href: '/dashboard',    label: 'Overview',      icon: LayoutDashboard },
-  { href: '/navi',         label: 'Ask Navi',      icon: Sparkles },
   { href: '/pl',           label: 'P&L Statement', icon: TrendingUp },
   { href: '/cash-flow',    label: 'Cash Flow',     icon: Waves },
   { href: '/revenue',      label: 'Revenue',       icon: BarChart3 },

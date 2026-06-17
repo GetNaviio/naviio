@@ -10,7 +10,7 @@
  */
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import {
   Home, Waves, FileText, BarChart3, Telescope, LineChart, CreditCard, Target,
   Calculator, Plug, Wallet, Bell, Settings, MoreHorizontal, Sparkles, X, Check,
@@ -43,7 +43,6 @@ const MUTED = 'var(--color-text-muted)'
 
 export default function MobileTabBar() {
   const pathname = usePathname()
-  const router = useRouter()
   const [slots, setSlots] = useTabPrefs(DEFAULT_SLOTS)
   const [sheet, setSheet] = useState<'none' | 'more' | 'customize'>('none')
 
@@ -58,7 +57,7 @@ export default function MobileTabBar() {
   // "More" is active when the current page isn't one of the bar tabs.
   const onBarActive = pathActive('/dashboard') || slotItems.some((s) => pathActive(s.href))
 
-  function openNavi() { router.push('/navi') }
+  function openNavi() { window.dispatchEvent(new CustomEvent('naviio:open-navi')) }
 
   function toggleSlot(id: string) {
     if (slots.includes(id)) setSlots(slots.filter((x) => x !== id))
