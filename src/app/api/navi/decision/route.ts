@@ -13,6 +13,7 @@ import { chargeCredits, addCredits, InsufficientCreditsError } from '@/lib/credi
 import { costOf } from '@/lib/credits/rates'
 import { getFinancialContext } from '@/lib/decisions/context'
 import { parseDecisionQuestion } from '@/lib/decisions/parse'
+import { prisma } from '@/lib/prisma'
 import {
   buildAffordabilityAnswer, buildCapexAnswer, buildRunwayPathAnswer,
   type AffordabilityParams, type CapexParams, type RunwayPathParams,
@@ -38,13 +39,14 @@ function validate(template: Template, p: Record<string, unknown>): string | null
   return null
 }
 
-export const POST = withOrg(async (request, { orgId }) => {
+export const POST = withOrg(async (request, { user, orgId }) => {
   let body: { template?: string; params?: Record<string, unknown>; question?: string }
   try {
     body = await request.json()
   } catch {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
+  const questionText = typeof body.question === 'string' ? body.question.trim() : ''
 
   let template: Template
   let params: Record<string, unknown>
@@ -87,6 +89,14 @@ export const POST = withOrg(async (request, { orgId }) => {
       : template === 'capex' ? buildCapexAnswer(ctx, params as unknown as CapexParams)
       : buildRunwayPathAnswer(ctx, params as unknown as RunwayPathParams)
 
+    // Persist the decision — the proprietary, compounding dataset behind the moat
+    // (question, inputs, verdict; outcome captured later). Raw insert so it works
+    // without regenerating the Prisma client in CI; never blocks the response.
+    await prisma.$executeRaw`
+      INSERT INTO "DecisionLog" ("id","orgId","userId","template","question","verdict","headline","confidence","params","answer","createdAt")
+      VALUES (${crypto.randomUUID()}, ${orgId}, ${user.id}, ${template}, ${questionText || null}, ${answer.verdict}, ${answer.headline}, ${answer.confidence}, ${JSON.stringify(params)}::jsonb, ${JSON.stringify(answer)}::jsonb, now())
+    `.catch((e: unknown) => console.error('decision log persist failed (response still returned):', e))
+
     return Response.json({
       answer,
       context: {
@@ -103,5 +113,23 @@ export const POST = withOrg(async (request, { orgId }) => {
     await addCredits(orgId, costOf('navi_message'), 'refund', { feature: 'navi_message' }).catch(() => {})
     console.error('decision compute failed:', err)
     return Response.json({ error: 'Could not compute this decision. Please try again.' }, { status: 200 })
+  }
+})
+
+/** Recent decisions for this org — the start of the decision history / audit trail. */
+export const GET = withOrg(async (_request, { orgId }) => {
+  try {
+    const decisions = await prisma.$queryRaw<Array<{
+      id: string; template: string; question: string | null; verdict: string;
+      headline: string; confidence: string; outcome: string | null; createdAt: Date
+    }>>`
+      SELECT "id", "template", "question", "verdict", "headline", "confidence", "outcome", "createdAt"
+      FROM "DecisionLog" WHERE "orgId" = ${orgId}
+      ORDER BY "createdAt" DESC LIMIT 50
+    `
+    return Response.json({ decisions })
+  } catch {
+    // Table may not exist yet (migration pending) — degrade gracefully.
+    return Response.json({ decisions: [] })
   }
 })

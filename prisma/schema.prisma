@@ -190,8 +190,40 @@ model Organization {
   members           OrgMember[]
   invitations       Invitation[]
   portalShares      PortalShare[]
+  decisionLogs      DecisionLog[]
 
   @@index([userId])
+}
+
+/**
+ * Navi Decision Engine log — one row per computed decision (affordability,
+ * capex, runway). This is the proprietary, compounding dataset behind the moat:
+ * the question asked, the inputs/assumptions, and the verdict, plus an optional
+ * realized OUTCOME captured later (did they do it? what happened?). The full
+ * engine answer is snapshotted as JSON so the historical reasoning is auditable.
+ * No customer money math is stored beyond what the engine produced.
+ */
+model DecisionLog {
+  id          String   @id @default(cuid())
+  orgId       String
+  userId      String
+  template    String   // 'affordability' | 'capex' | 'runway_path'
+  question    String?  // the natural-language question, when asked in chat
+  verdict     String   // 'yes' | 'no' | 'conditional'
+  headline    String
+  confidence  String   // 'high' | 'medium' | 'low'
+  params      Json     // the inputs/assumptions used
+  answer      Json     // full answer-contract snapshot
+  // Outcome loop (filled in later): did the user act, and what happened?
+  outcome     String?  // e.g. 'proceeded' | 'declined' | 'deferred'
+  outcomeNote String?
+  outcomeAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, template])
 }
 
 /**
