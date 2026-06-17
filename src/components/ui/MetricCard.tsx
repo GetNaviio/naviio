@@ -15,6 +15,28 @@ interface MetricCardProps {
   iconBg?: string
   subtitle?: string
   tooltip?: string
+  /** Optional mini trend line (one value per period, oldest → newest). */
+  sparkline?: number[]
+  sparklineColor?: string
+}
+
+/** Lightweight inline SVG sparkline — no chart library, scales to the card width. */
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  if (!data || data.length < 2) return null
+  const w = 100, h = 32
+  const min = Math.min(...data), max = Math.max(...data)
+  const range = max - min || 1
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w
+    const y = h - ((v - min) / range) * h
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  })
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full" style={{ height: 36 }} aria-hidden="true">
+      <polygon points={`0,${h} ${pts.join(' ')} ${w},${h}`} fill={color} opacity={0.08} />
+      <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  )
 }
 
 export default function MetricCard({
@@ -29,6 +51,8 @@ export default function MetricCard({
   iconBg,
   subtitle,
   tooltip,
+  sparkline,
+  sparklineColor,
 }: MetricCardProps) {
   const trendPositive = trend !== undefined && trend > 0
   const trendNegative = trend !== undefined && trend < 0
@@ -104,6 +128,12 @@ export default function MetricCard({
             {formatPercent(trend)}
           </span>
           <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{trendLabel}</span>
+        </div>
+      )}
+
+      {sparkline && sparkline.length > 1 && (
+        <div className="mt-auto -mb-1">
+          <Sparkline data={sparkline} color={sparklineColor ?? 'var(--color-info)'} />
         </div>
       )}
     </div>

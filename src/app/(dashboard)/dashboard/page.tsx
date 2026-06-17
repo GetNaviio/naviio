@@ -2,6 +2,9 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import Header from '@/components/layout/Header'
+import NotificationsBell from '@/components/layout/NotificationsBell'
+import CommandPalette from '@/components/layout/CommandPalette'
+import { useTheme } from '@/components/layout/ThemeContext'
 import MetricCard from '@/components/ui/MetricCard'
 import Card from '@/components/ui/Card'
 import dynamic from 'next/dynamic'
@@ -12,7 +15,7 @@ const NaviScore = dynamic(() => import('@/components/NaviScore'), { ssr: false, 
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import RefreshNowButton from '@/components/RefreshNowButton'
 import { formatCurrency } from '@/lib/utils'
-import { DollarSign, TrendingUp, TrendingDown, Activity, Clock, BarChart3, Users, PieChart, Wallet, Sparkles, ArrowRight } from 'lucide-react'
+import { DollarSign, TrendingUp, TrendingDown, Clock, Sparkles, ArrowRight, Search, Moon, Sun, ChevronDown, Building2 } from 'lucide-react'
 import type { CashFlowDataPoint } from '@/types'
 
 interface Metrics {
@@ -37,8 +40,32 @@ export default function DashboardPage() {
   // Computed after mount only — formatting a live date during render differs
   // between server and browser (ICU versions, ticking clock) and breaks hydration.
   const [lastUpdated, setLastUpdated] = useState('')
+  const { theme, toggleTheme } = useTheme()
+  const [firstName, setFirstName] = useState('')
+  const [orgName, setOrgName] = useState('')
+  const [greeting, setGreeting] = useState('Welcome')
+  const [period, setPeriod] = useState<'ytd' | 'month'>('ytd')
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  // Date/greeting/identity are resolved after mount (formatting a live date during
+  // render breaks hydration; user/org come from the API).
   useEffect(() => {
     setLastUpdated(new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }))
+    const h = new Date().getHours()
+    setGreeting(h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening')
+    fetch('/api/auth/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
+      const n = (d?.user?.name || d?.user?.email || '').toString().trim()
+      if (n) setFirstName(n.split(/[\s@]+/)[0])
+    }).catch(() => {})
+    fetch('/api/org/switch').then((r) => (r.ok ? r.json() : null)).then((d) => {
+      const active = (d?.orgs || []).find((o: { active?: boolean }) => o.active)
+      if (active?.name) setOrgName(active.name)
+    }).catch(() => {})
+    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setSearchOpen((v) => !v) } }
+    const onOpenSearch = () => setSearchOpen(true)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('naviio:open-search', onOpenSearch)
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('naviio:open-search', onOpenSearch) }
   }, [])
 
   useEffect(() => {
@@ -83,66 +110,8 @@ export default function DashboardPage() {
   const EMPTY = '—'
   const plaid = !!m?.sources?.plaid
   const netPositive = (is?.netIncome ?? 0) >= 0
-  const cards: { title: string; value: string; suffix?: string; subtitle?: string; icon: ReactNode; iconBg: string; tooltip: string }[] = [
-    {
-      title: 'Cash Balance',
-      value: plaid && cash != null ? formatCurrency(cash, true) : EMPTY,
-      subtitle: plaid && cash != null ? (runway == null ? 'Cash positive' : `${runway}mo runway`) : 'Connect a bank',
-      icon: <DollarSign size={16} style={{ color: '#10B981' }} />, iconBg: 'rgba(16,185,129,0.15)',
-      tooltip: 'Cash across your checking/savings accounts, synced via Plaid (credit/loan balances excluded).',
-    },
-    {
-      title: 'MRR',
-      value: stripe ? formatCurrency(stripe.mrr, true) : EMPTY,
-      subtitle: stripe ? `ARR ${formatCurrency(stripe.arr, true)}` : 'Connect Stripe',
-      icon: <TrendingUp size={16} style={{ color: '#3B82F6' }} />, iconBg: 'rgba(59,130,246,0.15)',
-      tooltip: 'Monthly Recurring Revenue from active Stripe subscriptions.',
-    },
-    {
-      title: 'Total Income',
-      value: is ? formatCurrency(is.totalIncome, true) : EMPTY,
-      subtitle: 'Year-to-date',
-      icon: <Wallet size={16} style={{ color: '#3B82F6' }} />, iconBg: 'rgba(59,130,246,0.15)',
-      tooltip: 'Year-to-date income from your payment + bank activity, deduplicated.',
-    },
-    {
-      title: 'Net Income',
-      value: is ? formatCurrency(is.netIncome, true) : EMPTY,
-      subtitle: 'Year-to-date',
-      icon: <BarChart3 size={16} style={{ color: netPositive ? '#10B981' : '#EF4444' }} />,
-      iconBg: netPositive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-      tooltip: 'Income minus operating expenses, year-to-date.',
-    },
-    {
-      title: 'Net Margin',
-      value: is?.netMargin != null ? is.netMargin.toFixed(1) : EMPTY,
-      suffix: is?.netMargin != null ? '%' : undefined,
-      icon: <PieChart size={16} style={{ color: '#14B8A6' }} />, iconBg: 'rgba(20,184,166,0.15)',
-      tooltip: 'Net income as a percentage of total income, year-to-date.',
-    },
-    {
-      title: 'Monthly Burn',
-      value: plaid ? (cf && cf.burnRate > 0 ? formatCurrency(cf.burnRate, true) : 'Cash positive') : EMPTY,
-      subtitle: plaid ? undefined : 'Connect a bank',
-      icon: <Clock size={16} style={{ color: '#F59E0B' }} />, iconBg: 'rgba(245,158,11,0.15)',
-      tooltip: 'Average net cash consumed per month across cash-negative months.',
-    },
-    {
-      title: 'Runway',
-      value: plaid ? (runway == null ? '∞' : `${runway}`) : EMPTY,
-      suffix: plaid && runway != null ? ' mo' : undefined,
-      subtitle: plaid ? undefined : 'Connect a bank',
-      icon: <Activity size={16} style={{ color: '#8B5CF6' }} />, iconBg: 'rgba(139,92,246,0.15)',
-      tooltip: 'Months until cash runs out at current burn (Cash ÷ Burn).',
-    },
-    {
-      title: 'Customers',
-      value: stripe?.customers ? stripe.customers.total.toLocaleString() : EMPTY,
-      subtitle: stripe?.customers ? `${(stripe.churnRate * 100).toFixed(1)}% churn` : 'Connect Stripe',
-      icon: <Users size={16} style={{ color: '#3B82F6' }} />, iconBg: 'rgba(59,130,246,0.15)',
-      tooltip: 'Active Stripe customers and monthly logo churn.',
-    },
-  ]
+  // Desktop cards (Cash Balance · Net Burn · Revenue · Runway) are computed below,
+  // after the period-aware monthly-series helpers.
 
   // ── Mobile (accountant-prioritized): hero = Runway, then 3 source-aware chips.
   // Bank-only → Net Income; SaaS (Stripe) → MRR; Stripe-only → lead with MRR. We
@@ -184,9 +153,119 @@ export default function DashboardPage() {
     chips.push({ label: 'Margin', value: marginText })
   }
 
+  // ── Desktop (mockup layout): period-aware monthly series + the four cards ──
+  const months = cf?.byMonth ?? []
+  const lastM = months[months.length - 1]
+  const prevM = months[months.length - 2]
+  const pctChange = (cur?: number, prior?: number) =>
+    cur != null && prior != null && prior !== 0 ? ((cur - prior) / Math.abs(prior)) * 100 : undefined
+  const balSpark = series.map((s) => s.balance)
+  const revSpark = series.map((s) => s.cashIn)
+  const burnSpark = series.map((s) => Math.max(0, s.cashOut - s.cashIn))
+  const burnNow = cf?.burnRate ?? 0
+  const runwaySpark = burnNow > 0 ? balSpark.map((b) => Math.max(0, Math.round(b / burnNow))) : []
+  const lastBurn = lastM ? Math.max(0, lastM.cashOut - lastM.cashIn) : undefined
+  const prevBurn = prevM ? Math.max(0, prevM.cashOut - prevM.cashIn) : undefined
+  const isMonth = period === 'month'
+  const desktopCards: { title: string; value: string; suffix?: string; subtitle?: string; trend?: number; goodWhen?: 'up' | 'down'; icon: ReactNode; iconBg: string; sparkline?: number[]; sparklineColor: string; tooltip: string }[] = [
+    {
+      title: 'Cash Balance',
+      value: plaid && cash != null ? formatCurrency(cash, true) : EMPTY,
+      subtitle: plaid && cash != null ? 'Across connected accounts' : 'Connect a bank',
+      trend: plaid ? (cashTrend ?? undefined) : undefined,
+      icon: <DollarSign size={16} style={{ color: '#10B981' }} />, iconBg: 'rgba(16,185,129,0.15)',
+      sparkline: plaid && balSpark.length > 1 ? balSpark : undefined, sparklineColor: '#10B981',
+      tooltip: 'Total cash across connected checking/savings accounts (Plaid).',
+    },
+    {
+      title: 'Net Burn',
+      value: plaid
+        ? (isMonth ? (lastBurn != null ? formatCurrency(lastBurn, true) : EMPTY) : (burnNow > 0 ? formatCurrency(burnNow, true) : 'Cash positive'))
+        : EMPTY,
+      subtitle: plaid ? (isMonth ? 'This month' : 'Avg / mo · YTD') : 'Connect a bank',
+      trend: plaid ? pctChange(lastBurn, prevBurn) : undefined,
+      goodWhen: 'down',
+      icon: <TrendingDown size={16} style={{ color: '#8B5CF6' }} />, iconBg: 'rgba(139,92,246,0.15)',
+      sparkline: plaid && burnSpark.length > 1 ? burnSpark : undefined, sparklineColor: '#8B5CF6',
+      tooltip: 'Net cash consumed (outflows over inflows).',
+    },
+    {
+      title: 'Revenue',
+      value: isMonth ? (lastM ? formatCurrency(lastM.cashIn, true) : EMPTY) : (is ? formatCurrency(is.totalIncome, true) : EMPTY),
+      subtitle: isMonth ? 'This month' : 'Year to date',
+      trend: pctChange(lastM?.cashIn, prevM?.cashIn),
+      icon: <TrendingUp size={16} style={{ color: '#06B6D4' }} />, iconBg: 'rgba(6,182,212,0.15)',
+      sparkline: revSpark.length > 1 ? revSpark : undefined, sparklineColor: '#06B6D4',
+      tooltip: 'Cash-basis revenue from your bank + payment activity.',
+    },
+    {
+      title: 'Runway',
+      value: plaid ? (runway == null ? '∞' : `${runway}`) : EMPTY,
+      suffix: plaid && runway != null ? ' months' : undefined,
+      subtitle: plaid ? 'At current burn' : 'Connect a bank',
+      trend: plaid && runwaySpark.length > 1 ? pctChange(runwaySpark[runwaySpark.length - 1], runwaySpark[runwaySpark.length - 2]) : undefined,
+      icon: <Clock size={16} style={{ color: '#3B82F6' }} />, iconBg: 'rgba(59,130,246,0.15)',
+      sparkline: plaid && runwaySpark.length > 1 ? runwaySpark : undefined, sparklineColor: '#3B82F6',
+      tooltip: 'Months of cash remaining at the current burn rate.',
+    },
+  ]
+
   return (
     <div>
-      <Header title="Financial Overview" subtitle={lastUpdated ? `Last updated: ${lastUpdated}` : 'Last updated: —'} />
+      {/* Mobile keeps the standard header (brand icon + bell + title below) */}
+      <div className="lg:hidden">
+        <Header title="Financial Overview" subtitle={lastUpdated ? `Last updated: ${lastUpdated}` : 'Last updated: —'} />
+      </div>
+
+      {/* Desktop: personalized greeting + org / period / profile cluster */}
+      <header
+        className="hidden lg:flex items-center justify-between sticky top-0 z-30 px-6 py-4 border-b"
+        style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}
+      >
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
+            {greeting}{firstName ? `, ${firstName}` : ''}
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>Here&apos;s your financial overview</p>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => setSearchOpen(true)} className="p-2 rounded-lg transition-colors hover:bg-white/5" style={{ color: 'var(--color-text-secondary)' }} aria-label="Search">
+            <Search size={16} />
+          </button>
+          <button onClick={toggleTheme} className="p-2 rounded-lg transition-colors hover:bg-white/5" style={{ color: 'var(--color-text-secondary)' }} aria-label="Toggle theme">
+            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
+          <NotificationsBell />
+          <div className="flex items-center gap-3 pl-3 ml-1 border-l" style={{ borderColor: 'var(--color-surface-border)' }}>
+            <div className="text-right">
+              {orgName && (
+                <div className="flex items-center justify-end gap-1 text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                  <Building2 size={13} style={{ color: 'var(--color-text-muted)' }} />
+                  {orgName}
+                </div>
+              )}
+              <div className="relative inline-flex items-center">
+                <select
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value as 'ytd' | 'month')}
+                  className="appearance-none bg-transparent text-xs pr-4 cursor-pointer focus:outline-none"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                  aria-label="Reporting period"
+                >
+                  <option value="ytd">Year to Date</option>
+                  <option value="month">This Month</option>
+                </select>
+                <ChevronDown size={12} className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-muted)' }} />
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ background: 'linear-gradient(135deg,#3B82F6,#14B8A6)', color: '#fff' }}>
+              {(firstName || 'U').charAt(0).toUpperCase()}
+            </div>
+          </div>
+        </div>
+        <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
+      </header>
 
       {m?.sources?.plaid && (
         <div className="px-4 sm:px-6 pt-4">
@@ -243,10 +322,23 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {/* ── Desktop metric grid (unchanged) ── */}
+            {/* ── Desktop metric grid: Cash Balance · Net Burn · Revenue · Runway ── */}
             <div className="hidden lg:grid grid-cols-4 gap-4">
-              {cards.map((c) => (
-                <MetricCard key={c.title} title={c.title} value={c.value} suffix={c.suffix} subtitle={c.subtitle} icon={c.icon} iconBg={c.iconBg} tooltip={c.tooltip} />
+              {desktopCards.map((c) => (
+                <MetricCard
+                  key={c.title}
+                  title={c.title}
+                  value={c.value}
+                  suffix={c.suffix}
+                  subtitle={c.subtitle}
+                  trend={c.trend}
+                  goodWhen={c.goodWhen}
+                  icon={c.icon}
+                  iconBg={c.iconBg}
+                  tooltip={c.tooltip}
+                  sparkline={c.sparkline}
+                  sparklineColor={c.sparklineColor}
+                />
               ))}
             </div>
 
