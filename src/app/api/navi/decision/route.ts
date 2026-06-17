@@ -12,6 +12,7 @@ import { withOrg } from '@/lib/api/with-org'
 import { chargeCredits, addCredits, InsufficientCreditsError } from '@/lib/credits/account'
 import { costOf } from '@/lib/credits/rates'
 import { getFinancialContext } from '@/lib/decisions/context'
+import { parseDecisionQuestion } from '@/lib/decisions/parse'
 import {
   buildAffordabilityAnswer, buildCapexAnswer, buildRunwayPathAnswer,
   type AffordabilityParams, type CapexParams, type RunwayPathParams,
@@ -38,20 +39,35 @@ function validate(template: Template, p: Record<string, unknown>): string | null
 }
 
 export const POST = withOrg(async (request, { orgId }) => {
-  let body: { template?: string; params?: Record<string, unknown> }
+  let body: { template?: string; params?: Record<string, unknown>; question?: string }
   try {
     body = await request.json()
   } catch {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const template = body.template as Template
-  if (!TEMPLATES.includes(template)) {
-    return Response.json({ error: `Unknown template. Use one of: ${TEMPLATES.join(', ')}.` }, { status: 400 })
+  let template: Template
+  let params: Record<string, unknown>
+
+  if (typeof body.question === 'string' && body.question.trim()) {
+    // Natural-language path: parse the question into a template + the numbers the
+    // user stated. If required inputs are missing, hand the parse back (no charge)
+    // so the UI can pre-fill the form and ask for the rest.
+    const parsed = parseDecisionQuestion(body.question)
+    if (parsed.missing.length > 0) {
+      return Response.json({ needs: parsed }, { status: 200 })
+    }
+    template = parsed.template
+    params = parsed.params as Record<string, unknown>
+  } else {
+    template = body.template as Template
+    if (!TEMPLATES.includes(template)) {
+      return Response.json({ error: `Unknown template. Use one of: ${TEMPLATES.join(', ')}.` }, { status: 400 })
+    }
+    params = body.params ?? {}
+    const invalid = validate(template, params)
+    if (invalid) return Response.json({ error: invalid }, { status: 400 })
   }
-  const params = body.params ?? {}
-  const invalid = validate(template, params)
-  if (invalid) return Response.json({ error: invalid }, { status: 400 })
 
   // Meter first (this is the credit gate). Refund if the computation throws.
   try {

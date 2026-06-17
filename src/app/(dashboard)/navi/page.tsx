@@ -38,6 +38,8 @@ export default function NaviPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [answer, setAnswer] = useState<DecisionAnswer | null>(null)
+  const [question, setQuestion] = useState('')
+  const [needsNote, setNeedsNote] = useState('')
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF((prev) => ({ ...prev, [k]: e.target.value }))
   const numv = (k: string): number | undefined => { const n = parseFloat(f[k]); return Number.isFinite(n) ? n : undefined }
@@ -73,11 +75,71 @@ export default function NaviPage() {
     finally { setLoading(false) }
   }
 
+  function prefillFromNeeds(parsed: { template: Template; params: Record<string, unknown> }) {
+    setTemplate(parsed.template)
+    const p = parsed.params
+    const next: Record<string, string> = {}
+    const put = (k: string, v: unknown, transform: (n: number) => number = (n) => n) => {
+      if (v == null) return
+      next[k] = typeof v === 'number' ? String(transform(v)) : String(v)
+    }
+    put('label', p.label); put('amount', p.amount); put('price', p.price)
+    put('horizonMonths', p.horizonMonths); put('termMonths', p.termMonths)
+    put('avgRevenuePerUnit', p.avgRevenuePerUnit); put('unitsPerMonth', p.unitsPerMonth)
+    put('apr', p.apr, (n) => Math.round(n * 100))
+    put('grossMarginPct', p.grossMarginPct, (n) => Math.round(n * 100))
+    setF(next)
+  }
+
+  async function askQuestion() {
+    if (!question.trim()) return
+    setLoading(true); setError(''); setAnswer(null); setNeedsNote('')
+    try {
+      const res = await fetch('/api/navi/decision', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.status === 402) { setError(data.error || "You're out of credits."); return }
+      if (data.needs) {
+        prefillFromNeeds(data.needs)
+        setNeedsNote('I filled in what I could from your question — add the missing details below, then Ask Navi.')
+        return
+      }
+      if (!res.ok || !data.answer) { setError(data.error || "I couldn't read that one — try the forms below."); return }
+      setAnswer(data.answer as DecisionAnswer)
+    } catch { setError('Network error — please try again.') }
+    finally { setLoading(false) }
+  }
+
   return (
     <div>
       <Header title="Navi" subtitle="Ask a decision — answered from your live numbers" />
 
       <div className="p-4 sm:p-6 max-w-3xl space-y-5">
+        {/* Natural-language ask */}
+        <div className="rounded-xl p-4 no-print" style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}>
+          <span className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>Ask Navi a decision</span>
+          <div className="flex gap-2">
+            <input
+              className={inputCls} style={inputStyle}
+              placeholder="Can we afford a $240k lease in the next 3 months?"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') askQuestion() }}
+            />
+            <button onClick={askQuestion} disabled={loading}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-2 disabled:opacity-60 flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg,#2F6BFF,#1E5BE6)' }}>
+              {loading ? <Loader2 size={15} className="animate-spin" /> : null} Ask
+            </button>
+          </div>
+          <p className="text-[11px] mt-1.5" style={{ color: 'var(--color-text-muted)' }}>Ask like you would a CFO — Navi reads the question and answers from your live numbers.</p>
+        </div>
+
+        {needsNote && (
+          <div className="rounded-lg px-3 py-2.5 text-sm no-print" style={{ backgroundColor: 'rgba(59,130,246,0.10)', color: '#3B82F6', border: '1px solid rgba(59,130,246,0.3)' }}>{needsNote}</div>
+        )}
+
         {/* Template selector */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           {TABS.map(({ id, label, icon: Icon, blurb }) => {
@@ -138,8 +200,27 @@ export default function NaviPage() {
           <div className="rounded-lg px-3 py-2.5 text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.10)', color: '#F87171', border: '1px solid rgba(239,68,68,0.3)' }}>{error}</div>
         )}
 
-        {answer && <NaviDecisionCard answer={answer} />}
+        {answer && (
+          <div className="navi-print space-y-3">
+            <div className="print-only" style={{ display: 'none' }}>
+              <p style={{ fontWeight: 700, fontSize: 18 }}>Naviio — Financial Decision Summary</p>
+              <p style={{ fontSize: 12, color: '#555' }}>{new Date().toLocaleDateString('en-US', { dateStyle: 'long' })}</p>
+            </div>
+            <NaviDecisionCard
+              answer={answer}
+              onExport={answer.template === 'runway_path' ? () => window.print() : undefined}
+            />
+          </div>
+        )}
       </div>
+
+      <style>{`@media print {
+        body * { visibility: hidden !important; }
+        .navi-print, .navi-print * { visibility: visible !important; }
+        .navi-print { position: absolute; left: 0; top: 0; width: 100%; }
+        .no-print { display: none !important; }
+        .print-only { display: block !important; }
+      }`}</style>
     </div>
   )
 }

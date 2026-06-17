@@ -6,7 +6,7 @@
  * next steps, with provenance and the not-advice line. Every figure shown comes
  * straight from the engine via the answer payload.
  */
-import { CheckCircle2, XCircle, AlertCircle, Sparkles, Check } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertCircle, Sparkles, Check, Download } from 'lucide-react'
 import type { DecisionAnswer } from '@/lib/decisions/types'
 
 function VerdictIcon({ verdict }: { verdict: DecisionAnswer['verdict'] }) {
@@ -37,7 +37,7 @@ const verdictBg = (v: DecisionAnswer['verdict']) =>
 const verdictBorder = (v: DecisionAnswer['verdict']) =>
   v === 'yes' ? 'rgba(16,185,129,0.35)' : v === 'no' ? 'rgba(239,68,68,0.35)' : 'rgba(59,130,246,0.35)'
 
-export default function NaviDecisionCard({ answer }: { answer: DecisionAnswer }) {
+export default function NaviDecisionCard({ answer, onExport }: { answer: DecisionAnswer; onExport?: () => void }) {
   return (
     <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}>
       {/* Header */}
@@ -45,7 +45,14 @@ export default function NaviDecisionCard({ answer }: { answer: DecisionAnswer })
         <div className="flex items-center gap-2 font-semibold" style={{ color: 'var(--color-text-primary)' }}>
           <Sparkles size={16} style={{ color: '#3B82F6' }} /> Navi
         </div>
-        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#3B82F6' }}>AI Advisor</span>
+        <div className="flex items-center gap-2">
+          {onExport && (
+            <button onClick={onExport} className="no-print flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg transition-colors" style={{ color: 'var(--color-text-secondary)', border: '1px solid var(--color-surface-border)' }}>
+              <Download size={13} /> Export for board
+            </button>
+          )}
+          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#3B82F6' }}>AI Advisor</span>
+        </div>
       </div>
 
       <div className="p-5 space-y-4">
