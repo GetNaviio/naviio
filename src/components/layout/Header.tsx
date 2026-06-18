@@ -1,8 +1,7 @@
 'use client'
 
-import { Search, RefreshCw } from 'lucide-react'
+import { Search, Moon, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTheme } from './ThemeContext'
 import CommandPalette from './CommandPalette'
 import NotificationsBell from './NotificationsBell'
@@ -17,8 +16,6 @@ interface HeaderProps {
 }
 
 export default function Header({ title, subtitle, showPeriod = false }: HeaderProps) {
-  const router = useRouter()
-  const [refreshing, setRefreshing] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
 
@@ -39,15 +36,6 @@ export default function Header({ title, subtitle, showPeriod = false }: HeaderPr
     }
   }, [])
 
-  // Broadcast a refresh that every usePageData page (and the bell) listens for,
-  // and refresh server components. Brief spinner = honest feedback.
-  function handleRefresh() {
-    setRefreshing(true)
-    window.dispatchEvent(new CustomEvent('naviio:refresh'))
-    router.refresh()
-    setTimeout(() => setRefreshing(false), 900)
-  }
-
   return (
     <>
     <header
@@ -65,42 +53,20 @@ export default function Header({ title, subtitle, showPeriod = false }: HeaderPr
         </div>
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-        {/* Live badge — desktop only (utilities move into the brand menu on mobile) */}
-        <div className="hidden lg:flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: 'rgba(16,185,129,0.08)', color: 'var(--color-success)' }}>
-          <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ backgroundColor: 'var(--color-success)' }} />
-          <span>Live</span>
-        </div>
+      {/* Icon cluster matches the Overview exactly: search · theme · bell · org/period · profile */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        {/* Search — desktop only; mobile opens it from the brand menu */}
+        <button onClick={() => setSearchOpen(true)} className="hidden lg:block p-2 rounded-lg transition-colors hover:bg-white/5" style={{ color: 'var(--color-text-secondary)' }} aria-label="Search">
+          <Search size={16} />
+        </button>
 
-        <button
-          onClick={handleRefresh}
-          className="hidden lg:block p-2 rounded-lg transition-colors"
-          style={{ color: 'var(--color-text-secondary)' }}
-          aria-label="Refresh data"
-        >
-          <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
+        {/* Theme — desktop only */}
+        <button onClick={toggleTheme} className="hidden lg:block p-2 rounded-lg transition-colors hover:bg-white/5" style={{ color: 'var(--color-text-secondary)' }} aria-label="Toggle theme">
+          {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
         </button>
 
         {/* Bell — shown on every screen size */}
         <NotificationsBell />
-
-        <button onClick={toggleTheme} className="hidden lg:block p-2 rounded-lg transition-colors" style={{ color: 'var(--color-text-secondary)' }} aria-label="Toggle theme">
-          {theme === 'light' ? '🌙' : '☀️'}
-        </button>
-
-        {/* Search — desktop only; mobile opens it from the brand menu */}
-        <div className="hidden lg:block pl-2 border-l" style={{ borderColor: 'var(--color-surface-border)' }}>
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-white/5"
-            style={{ backgroundColor: 'var(--color-surface-card)', color: 'var(--color-text-secondary)' }}
-            aria-label="Search"
-          >
-            <Search size={13} />
-            <span className="text-sm">Search</span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded ml-1" style={{ border: '1px solid var(--color-surface-border)', color: 'var(--color-text-muted)' }}>⌘K</kbd>
-          </button>
-        </div>
 
         {/* Org / entity switcher + period + profile — aligns every tab with the Overview */}
         <HeaderControls showPeriod={showPeriod} />
