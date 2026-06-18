@@ -181,7 +181,12 @@ export default function DashboardPage() {
   const heroLabel = heroCard.title
   const heroValue = `${heroCard.value}${heroCard.suffix ?? ''}`
   const heroSub = heroCard.subtitle ?? null
-  const chips: Chip[] = desktopCards.slice(1).map((c) => ({ label: c.title, value: `${c.value}${c.suffix ?? ''}` }))
+  const chips: Chip[] = desktopCards.slice(1).map((c) => ({
+    label: c.title,
+    // Compact the suffix for the narrow chips (e.g. " months" → " mo"); the
+    // desktop cards keep the full word.
+    value: `${c.value}${(c.suffix ?? '').replace(/\s*months?/i, ' mo')}`,
+  }))
 
   return (
     <div>
