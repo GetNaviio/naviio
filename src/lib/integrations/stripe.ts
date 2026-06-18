@@ -427,6 +427,12 @@ export async function getStripeMetrics(orgId: string): Promise<StripeMetrics | n
 // ─── Aggregator shape (consumed by ./index.ts fetchAllData) ────────────────────
 
 export async function fetchStripeData(orgId: string) {
+  // Persist Stripe charges into the ledger so the cash-basis P&L / Overview see
+  // Stripe revenue — not just the live Revenue-tab metrics. Without this, a
+  // manual "Sync Now" refreshes the Revenue cards but leaves Overview revenue at
+  // $0 until the cron runs. Never blocks the metric fetch below.
+  await syncStripeData(orgId).catch((e) => console.error('[stripe] ledger persist on sync failed:', errMsg(e)))
+
   const [mrr, revenue, churn] = await Promise.allSettled([
     fetchMRR(orgId),
     fetchRevenue(orgId),
