@@ -560,6 +560,22 @@ model CategorySpendStat {
   @@index([segment, category])
 }
 
+// Monthly snapshot of the vendor peer-median (per size band) so we can show how
+// peers' prices for a vendor trend over time ("similar businesses now pay 8%
+// more"). One row per (vendor, segment, month); k-anon already applied upstream.
+model VendorBenchmarkSnapshot {
+  id        String   @id @default(cuid())
+  vendorKey String
+  segment   String
+  period    String   // YYYY-MM
+  median    Int      // peer median monthly $ for that month
+  orgs      Int
+  createdAt DateTime @default(now())
+
+  @@unique([vendorKey, segment, period])
+  @@index([vendorKey, segment])
+}
+
 // ─── Forecast scenarios ─────────────────────────────────────────────────────────
 
 // User-defined forecast scenarios (multipliers applied to the base projection).

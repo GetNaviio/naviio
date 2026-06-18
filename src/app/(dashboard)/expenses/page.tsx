@@ -110,7 +110,7 @@ export default function ExpensesPage() {
   }, [sel, reloadKey])
 
   // Peer benchmarks: vendor (vendorKey → ratio) + category (spend ÷ revenue vs peers).
-  const [benchmarks, setBenchmarks] = useState<Record<string, { peerMedian: number; ratio: number; orgs: number }>>({})
+  const [benchmarks, setBenchmarks] = useState<Record<string, { peerMedian: number; ratio: number; orgs: number; peerTrendPct?: number | null }>>({})
   const [catBenchmarks, setCatBenchmarks] = useState<Array<{ category: string; yourPct: number; peerMedianPct: number; ratio: number; orgs: number }>>([])
   useEffect(() => {
     let alive = true
@@ -486,15 +486,18 @@ export default function ExpensesPage() {
                                 const b = tx.recurring && tx.vendorKey ? benchmarks[tx.vendorKey] : undefined
                                 if (!b) return null
                                 const high = b.ratio >= 1.15
+                                const t = b.peerTrendPct
+                                const trendUp = typeof t === 'number' && Math.abs(t) >= 3
+                                const trendText = trendUp ? ` · peers ${t > 0 ? '↑' : '↓'}${Math.abs(t)}% recently` : ''
                                 return (
                                   <span
                                     className="inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded"
                                     style={high
                                       ? { backgroundColor: 'rgba(245,158,11,0.15)', color: '#F59E0B' }
                                       : { backgroundColor: 'var(--color-surface-card-hover)', color: 'var(--color-text-muted)' }}
-                                    title={`Similar businesses pay a median of ${formatCurrency(b.peerMedian, true)}/mo (anonymized, ${b.orgs}+ peers).`}
+                                    title={`Similar businesses pay a median of ${formatCurrency(b.peerMedian, true)}/mo (anonymized, ${b.orgs}+ peers).${trendUp ? ` Peer median has moved ${t! > 0 ? 'up' : 'down'} ~${Math.abs(t!)}% over recent months.` : ''}`}
                                   >
-                                    {high ? `${b.ratio}× peer median · they pay ~${formatCurrency(b.peerMedian, true)}/mo` : `≈ peer median (${formatCurrency(b.peerMedian, true)}/mo)`}
+                                    {high ? `${b.ratio}× peer median · they pay ~${formatCurrency(b.peerMedian, true)}/mo` : `≈ peer median (${formatCurrency(b.peerMedian, true)}/mo)`}{trendText}
                                   </span>
                                 )
                               })()}

@@ -22,6 +22,7 @@ import { recordVendorVote } from '@/lib/metrics/community'
 import { detectRecurring } from '@/lib/metrics/recurrence'
 import { revenueToSegment } from '@/lib/benchmarks/buckets'
 import { getVendorBenchmarks, getCategoryBenchmarks } from '@/lib/benchmarks/read'
+import { getVendorTrends } from '@/lib/benchmarks/snapshot'
 import { fetchAllData } from '@/lib/integrations'
 import * as cache from '@/lib/cache'
 import {
@@ -187,7 +188,10 @@ export const NAVI_TOOLS: NaviTool[] = [
         if (!s.recurring) continue
         if (k === target || (target && (k.includes(target) || target.includes(k)))) { vk = k; yourMonthly = s.avgAmount; break }
       }
-      const bench = (await getVendorBenchmarks([vk], segment)).get(vk)
+      const [bench, trend] = await Promise.all([
+        getVendorBenchmarks([vk], segment).then((m) => m.get(vk)),
+        getVendorTrends([vk], segment).then((m) => m.get(vk) ?? null),
+      ])
       if (!bench) return { available: false, note: 'Not enough comparable businesses yet to benchmark this (need 5+).' }
       return {
         available: true,
@@ -195,6 +199,7 @@ export const NAVI_TOOLS: NaviTool[] = [
         peerMedian: bench.median, peerP25: bench.p25, peerP75: bench.p75,
         ratioVsPeers: yourMonthly && bench.median ? Math.round((yourMonthly / bench.median) * 100) / 100 : null,
         peers: bench.orgs,
+        peerTrend6moPct: trend, // +%/-% peers' price moved over ~the last quarter+, null if not enough history
       }
     },
   },

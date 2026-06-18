@@ -9,6 +9,7 @@ import { incomeStatement } from '@/lib/metrics/compute'
 import { detectRecurring } from '@/lib/metrics/recurrence'
 import { revenueToSegment, segmentLabel } from '@/lib/benchmarks/buckets'
 import { getVendorBenchmarks, getCategoryBenchmarks } from '@/lib/benchmarks/read'
+import { getVendorTrends } from '@/lib/benchmarks/snapshot'
 
 export async function GET() {
   let user
@@ -26,17 +27,19 @@ export async function GET() {
       if (s.recurring && s.avgAmount > 0) mine.set(s.vendorKey, s.avgAmount)
     }
 
-    const [benchmarks, catBenchmarks] = await Promise.all([
+    const [benchmarks, catBenchmarks, trends] = await Promise.all([
       getVendorBenchmarks([...mine.keys()], segment),
       getCategoryBenchmarks(segment),
+      getVendorTrends([...mine.keys()], segment),
     ])
-    const vendors: Record<string, { yourMonthly: number; peerMedian: number; p25: number; p75: number; ratio: number; orgs: number }> = {}
+    const vendors: Record<string, { yourMonthly: number; peerMedian: number; p25: number; p75: number; ratio: number; orgs: number; peerTrendPct: number | null }> = {}
     for (const [vk, b] of benchmarks) {
       const yourMonthly = mine.get(vk) ?? 0
       vendors[vk] = {
         yourMonthly: Math.round(yourMonthly),
         peerMedian: b.median, p25: b.p25, p75: b.p75, orgs: b.orgs,
         ratio: b.median > 0 ? Math.round((yourMonthly / b.median) * 100) / 100 : 1,
+        peerTrendPct: trends.get(vk) ?? null,
       }
     }
 
