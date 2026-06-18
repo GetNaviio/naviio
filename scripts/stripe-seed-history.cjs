@@ -19,12 +19,18 @@
 const fs = require('fs');
 const path = require('path');
 
+// Load env from the first matching dotenv file (Next.js uses .env.local), and
+// let an inline STRIPE_SECRET_KEY=... win over the file.
 const env = {};
-for (const line of fs.readFileSync(path.join(__dirname, '..', '.env'), 'utf8').split('\n')) {
-  const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-  if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+for (const name of ['.env.local', '.env', '.env.save']) {
+  const p = path.join(__dirname, '..', name);
+  if (!fs.existsSync(p)) continue;
+  for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+    if (m && env[m[1]] === undefined) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
 }
-const KEY = env.STRIPE_SECRET_KEY || '';
+const KEY = process.env.STRIPE_SECRET_KEY || env.STRIPE_SECRET_KEY || '';
 if (!KEY.startsWith('sk_test_')) {
   console.error('Refusing to run: STRIPE_SECRET_KEY must be a TEST key (sk_test_...).');
   process.exit(1);
