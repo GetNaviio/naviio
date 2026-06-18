@@ -1,7 +1,7 @@
 # 0051 — Navi as an in-product, tool-using agent
 
 - **Date:** 2026-06-18
-- **Status:** accepted (phases 1–2 shipped)
+- **Status:** accepted (phases 1–3 shipped)
 - **Owner (DRI):** product + AI
 - **Builds on:** Navi chat (`/api/insights/chat`), the Navi Decision Engine (0047/0048),
   the metric engine, and the provider router.
@@ -54,10 +54,18 @@ The "full operator" remit lands behind a confirmation contract:
 - **Out of scope by construction:** money movement and account/permission/settings
   changes — there are no tools for them, so the agent cannot perform them.
 
-## Still open (phase 3 candidates)
-- Persist agent-run `run_decision` calls to `DecisionLog` (the explicit chat
-  decision path already does; the agent path doesn't yet) so the outcome loop applies.
-- More action tools (create_scenario, export_board_pack) behind the same contract.
+## Phase 3 — shipped
+- **Agent-run decisions persist.** A shared `persistDecision` helper
+  (`lib/decisions/persist.ts`) is used by both the explicit decision route and the
+  agent's `run_decision` tool, so agent decisions also feed the outcome loop /
+  follow-up cron. A per-call `NaviToolCtx` (userId + question) is threaded
+  route → agent → tool; the model never supplies it.
+- **`create_scenario` action tool** — saves a custom forecast scenario
+  (growth/churn/opex multipliers, clamped 0–10) behind the same confirm contract.
+
+## Still open
+- **`export_board_pack`** — needs a server-side document-generation pipeline
+  (PDF/board deck) that doesn't exist yet; deferred until that's built.
 
 ## Alternatives considered
 - *Keep the static-snapshot chat.* Rejected: it can only answer what's pre-baked
