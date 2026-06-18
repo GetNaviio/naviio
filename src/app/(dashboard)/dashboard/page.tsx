@@ -28,7 +28,6 @@ interface Metrics {
   cash: { balance: number | null }
   runwayMonths: number | null
 }
-interface StripeMetrics { mrr: number; arr: number; customers?: { total: number }; churnRate: number }
 
 const monthLabel = (ym: string) => {
   const [y, m] = ym.split('-').map(Number)
@@ -37,7 +36,6 @@ const monthLabel = (ym: string) => {
 
 export default function DashboardPage() {
   const [m, setM] = useState<Metrics | null>(null)
-  const [stripe, setStripe] = useState<StripeMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   // Computed after mount only — formatting a live date during render differs
   // between server and browser (ICU versions, ticking clock) and breaks hydration.
@@ -68,15 +66,14 @@ export default function DashboardPage() {
   useEffect(() => {
     let alive = true
     const loadData = () => {
-      Promise.all([
-        fetch('/api/metrics').then((r) => (r.ok ? r.json() : null)),
-        fetch('/api/stripe/metrics').then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      ]).then(([metrics, sm]) => {
-        if (!alive) return
-        setM(metrics)
-        if (sm?.source === 'stripe' && sm.metrics) setStripe(sm.metrics)
-        setLoading(false)
-      }).catch(() => { if (alive) setLoading(false) })
+      fetch('/api/metrics')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((metrics) => {
+          if (!alive) return
+          setM(metrics)
+          setLoading(false)
+        })
+        .catch(() => { if (alive) setLoading(false) })
     }
     loadData()
     // If the page is restored from the back/forward cache (e.g. Back from Stripe
@@ -106,13 +103,11 @@ export default function DashboardPage() {
   // a hint telling the user what to connect — never a collapsed/missing frame.
   const EMPTY = '—'
   const plaid = !!m?.sources?.plaid
-  const netPositive = (is?.netIncome ?? 0) >= 0
   // Desktop cards (Cash Balance · Net Burn · Revenue · Runway) are computed below,
-  // after the period-aware monthly-series helpers.
+  // after the period-aware monthly-series helpers. The mobile hero + chips are
+  // then derived from those same cards so the two layouts never drift apart.
 
-  // ── Mobile (accountant-prioritized): hero = Runway, then 3 source-aware chips.
-  // Bank-only → Net Income; SaaS (Stripe) → MRR; Stripe-only → lead with MRR. We
-  // never render an empty MRR/customers card to a non-SaaS business.
+  // Cash-balance month-over-month trend — drives the mobile hero arrow.
   const cashTrend = (() => {
     if (series.length < 2) return null
     const cur = series[series.length - 1].balance
@@ -120,35 +115,6 @@ export default function DashboardPage() {
     if (!prev) return null
     return ((cur - prev) / Math.abs(prev)) * 100
   })()
-  const burnText = plaid ? (cf && cf.burnRate > 0 ? formatCurrency(cf.burnRate, true) : 'Cash positive') : '—'
-  const marginText = is?.netMargin != null ? `${is.netMargin.toFixed(1)}%` : '—'
-  type Chip = { label: string; value: string; color?: string }
-  let heroLabel = 'Cash balance'
-  let heroValue = '—'
-  let heroSub: string | null = null
-  const chips: Chip[] = []
-  if (plaid) {
-    if (runway != null) {
-      heroLabel = 'Runway'
-      heroValue = `${runway} mo`
-      heroSub = cash != null ? `Cash ${formatCurrency(cash, true)} · burn ${burnText}/mo` : null
-    } else {
-      heroLabel = 'Cash balance'
-      heroValue = cash != null ? formatCurrency(cash, true) : '—'
-      heroSub = 'Cash positive — not burning'
-    }
-    chips.push({ label: 'Burn', value: burnText })
-    if (stripe) chips.push({ label: 'MRR', value: formatCurrency(stripe.mrr, true) })
-    else chips.push({ label: 'Net income', value: is ? formatCurrency(is.netIncome, true) : '—', color: netPositive ? '#10B981' : '#EF4444' })
-    chips.push({ label: 'Margin', value: marginText })
-  } else if (stripe) {
-    heroLabel = 'MRR'
-    heroValue = formatCurrency(stripe.mrr, true)
-    heroSub = `ARR ${formatCurrency(stripe.arr, true)} · connect a bank for runway`
-    chips.push({ label: 'Customers', value: stripe.customers ? stripe.customers.total.toLocaleString() : '—' })
-    chips.push({ label: 'Churn', value: stripe.customers ? `${(stripe.churnRate * 100).toFixed(1)}%` : '—' })
-    chips.push({ label: 'Margin', value: marginText })
-  }
 
   // ── Desktop (mockup layout): period-aware monthly series + the four cards ──
   const months = cf?.byMonth ?? []
@@ -206,6 +172,16 @@ export default function DashboardPage() {
       tooltip: 'Months of cash remaining at the current burn rate.',
     },
   ]
+
+  // ── Mobile: the SAME four metrics as the desktop grid, in the hero + chips
+  // framing — hero = first card (Cash Balance), chips = Net Burn · Revenue ·
+  // Runway. Derived from desktopCards so mobile and desktop can't drift.
+  type Chip = { label: string; value: string; color?: string }
+  const heroCard = desktopCards[0]
+  const heroLabel = heroCard.title
+  const heroValue = `${heroCard.value}${heroCard.suffix ?? ''}`
+  const heroSub = heroCard.subtitle ?? null
+  const chips: Chip[] = desktopCards.slice(1).map((c) => ({ label: c.title, value: `${c.value}${c.suffix ?? ''}` }))
 
   return (
     <div>
