@@ -17,6 +17,10 @@ import { incomeStatement, cashFlow, runwayMonths } from '@/lib/metrics/compute'
 import { getCashBalance } from '@/lib/integrations/plaid'
 import { getStripeMetrics } from '@/lib/integrations/stripe'
 import { getFinancialContext } from '@/lib/decisions/context'
+import { USER_CATEGORIES, vendorKey, VENDOR_OVERRIDE_PREFIX } from '@/lib/metrics/classify'
+import { recordVendorVote } from '@/lib/metrics/community'
+import { fetchAllData } from '@/lib/integrations'
+import * as cache from '@/lib/cache'
 import {
   buildAffordabilityAnswer, buildCapexAnswer, buildRunwayPathAnswer,
   type AffordabilityParams, type CapexParams, type RunwayPathParams,
@@ -30,6 +34,10 @@ export interface NaviTool {
   kind: 'read' | 'action'
   input_schema: { type: 'object'; properties: Record<string, unknown>; required?: string[] }
   run: (orgId: string, input: Record<string, unknown>) => Promise<unknown>
+  /** Actions only: a human-readable summary of what will happen, shown on the
+   *  confirm card. The action is NEVER run by the agent loop — only after the
+   *  user confirms it (POST /api/navi/action). */
+  summarize?: (input: Record<string, unknown>) => string
 }
 
 const NO_INPUT = { type: 'object' as const, properties: {} }
@@ -104,9 +112,10 @@ export const NAVI_TOOLS: NaviTool[] = [
       const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 50)
       const rows = await prisma.transaction.findMany({
         where: { orgId }, orderBy: { date: 'desc' }, take: limit,
-        select: { date: true, description: true, amount: true, merchantName: true, type: true },
+        select: { date: true, description: true, amount: true, merchantName: true, type: true, externalId: true },
       })
       return rows.map((r) => ({
+        externalId: r.externalId,
         date: r.date.toISOString().slice(0, 10),
         description: r.description, merchant: r.merchantName, amount: r.amount,
         direction: r.type === 'CREDIT' ? 'in' : 'out',
@@ -145,7 +154,67 @@ export const NAVI_TOOLS: NaviTool[] = [
       }
     },
   },
+  // ─── Actions (NEVER auto-run; surfaced for the user to confirm) ──────────────
+  {
+    name: 'trigger_sync',
+    label: 'Re-syncing your accounts',
+    description:
+      'Re-pull the latest data from all connected integrations (bank, Stripe, accounting) and refresh the dashboard. Propose this when the user asks to refresh/update their data or when figures look stale.',
+    kind: 'action',
+    input_schema: NO_INPUT,
+    summarize: () => 'Re-sync all connected accounts now (pulls the latest transactions and refreshes every metric).',
+    run: async (orgId) => {
+      await fetchAllData(orgId)
+      return { ok: true, syncedAt: new Date().toISOString() }
+    },
+  },
+  {
+    name: 'reclassify_transaction',
+    label: 'Recategorizing',
+    description:
+      'Change the category of a transaction (and, by default, every transaction from that vendor going forward). ' +
+      'Get the externalId from recent_transactions. category must be one of: ' + USER_CATEGORIES.join(', ') + '. ' +
+      'Propose this when the user says a transaction/vendor is miscategorized.',
+    kind: 'action',
+    input_schema: {
+      type: 'object',
+      properties: {
+        externalId: { type: 'string', description: 'The transaction externalId (from recent_transactions).' },
+        category: { type: 'string', enum: USER_CATEGORIES },
+        applyToVendor: { type: 'boolean', description: 'Apply to the whole vendor (default true) or just this one.' },
+      },
+      required: ['externalId', 'category'],
+    },
+    summarize: (input) =>
+      `Recategorize ${input.applyToVendor === false ? 'this transaction' : 'this vendor'} as "${String(input.category)}"${input.applyToVendor === false ? '' : ' (and future transactions from it)'}.`,
+    run: async (orgId, input) => {
+      const externalId = String(input.externalId ?? '')
+      const category = String(input.category ?? '')
+      const applyToVendor = input.applyToVendor !== false
+      if (!externalId || !USER_CATEGORIES.includes(category)) return { ok: false, error: 'externalId and a valid category are required.' }
+      const txn = await prisma.transaction.findFirst({ where: { orgId, externalId }, select: { merchantName: true, description: true } })
+      if (!txn) return { ok: false, error: 'Transaction not found.' }
+      if (applyToVendor) {
+        const key = `${VENDOR_OVERRIDE_PREFIX}${vendorKey(txn)}`
+        await prisma.txnClassification.upsert({
+          where: { orgId_externalId: { orgId, externalId: key } },
+          create: { orgId, externalId: key, category },
+          update: { category },
+        })
+        void recordVendorVote(vendorKey(txn), category)
+      } else {
+        await prisma.txnClassification.upsert({
+          where: { orgId_externalId: { orgId, externalId } },
+          create: { orgId, externalId, category },
+          update: { category },
+        })
+      }
+      await cache.delPattern(`org:${orgId}:*`)
+      return { ok: true, category, appliedTo: applyToVendor ? 'vendor' : 'transaction' }
+    },
+  },
 ]
 
 export const READ_TOOLS = NAVI_TOOLS.filter((t) => t.kind === 'read')
+export const ACTION_TOOLS = NAVI_TOOLS.filter((t) => t.kind === 'action')
 export const toolByName = (name: string) => NAVI_TOOLS.find((t) => t.name === name)

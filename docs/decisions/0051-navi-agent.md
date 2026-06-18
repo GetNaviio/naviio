@@ -1,7 +1,7 @@
 # 0051 — Navi as an in-product, tool-using agent
 
 - **Date:** 2026-06-18
-- **Status:** accepted (phase 1 shipped)
+- **Status:** accepted (phases 1–2 shipped)
 - **Owner (DRI):** product + AI
 - **Builds on:** Navi chat (`/api/insights/chat`), the Navi Decision Engine (0047/0048),
   the metric engine, and the provider router.
@@ -38,20 +38,26 @@ numbers — multi-step, autonomous within a bounded loop. Customer-facing.
 - **UI**: the Navi chat now calls the agent route and shows tool activity
   ("Reading your P&L and cash…") until the answer streams in.
 
-## Phase 2 — full operator (designed, not yet built)
-The "full operator" remit (act on the app + web) lands behind the confirmation
-contract already accounted for in the architecture:
-- **Action tools** (`kind: 'action'`) — e.g. `trigger_sync`, `reclassify_transaction`,
-  `create_scenario`, `export_board_pack`. The loop, on an action tool call, does
-  NOT execute it; it emits a `{proposedAction}` SSE event with a human-readable
-  summary + the tool name/args. The UI renders a confirm/decline control; on
-  confirm, a separate authenticated endpoint runs the action. Money movement and
-  account/permission/settings changes stay out of scope entirely.
-- **Web search** — add Anthropic's server-side web-search tool (gated/optional)
-  for market or benchmark questions, clearly attributed and never mixed into the
-  user's own figures.
-- **Decision persistence** — when the agent runs `run_decision`, persist it to the
-  `DecisionLog` (as the chat path already does) so the outcome loop applies.
+## Phase 2 — full operator (shipped)
+The "full operator" remit lands behind a confirmation contract:
+- **Action tools** (`kind: 'action'`) — shipped `trigger_sync` (re-pull + refresh)
+  and `reclassify_transaction` (fix a transaction/vendor category). When the model
+  calls an action tool the loop does NOT execute it; it emits a `{proposedAction}`
+  SSE event (summary + tool + args) and stops. The chat renders a Confirm / Not-now
+  card; on confirm, `POST /api/navi/action` runs the named action server-side
+  (org-scoped, exact-name match — the client can't invoke arbitrary tools). On
+  success the UI fires `naviio:refresh` so dashboards update.
+- **Web search** — Anthropic's server-side web-search tool, gated behind
+  `NAVI_WEB_SEARCH=1` (off by default). The loop handles `pause_turn`
+  continuations. Use for market/benchmark questions; never mixed into the user's
+  own figures.
+- **Out of scope by construction:** money movement and account/permission/settings
+  changes — there are no tools for them, so the agent cannot perform them.
+
+## Still open (phase 3 candidates)
+- Persist agent-run `run_decision` calls to `DecisionLog` (the explicit chat
+  decision path already does; the agent path doesn't yet) so the outcome loop applies.
+- More action tools (create_scenario, export_board_pack) behind the same contract.
 
 ## Alternatives considered
 - *Keep the static-snapshot chat.* Rejected: it can only answer what's pre-baked

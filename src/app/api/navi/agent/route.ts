@@ -25,6 +25,8 @@ You have TOOLS that read the user's live, connected financial data and run a det
 - If a tool reports something isn't connected, say plainly what to connect (the Integrations tab) and give general guidance without inventing figures.
 - You may call multiple tools before answering; keep going until you can answer concretely, then stop.
 
+You can also PROPOSE actions when the user asks you to change something: trigger_sync (re-pull and refresh their data) and reclassify_transaction (fix a transaction or vendor's category — get the externalId from recent_transactions first). Calling an action tool does NOT run it: the user sees a confirm button and decides. Before proposing, say in one short line what you're about to do and why. Never propose money movement or account/settings changes — you have no such tools.
+
 You are not a licensed CPA or attorney — for filing or legal decisions, tell them to confirm with a professional. Figures are cash-basis unless a tool says otherwise.
 
 FORMAT — plain text only. No markdown, no asterisks, no "#" headers, no backticks, no tables, no emojis. Organize by topic: a short label line ending in a colon, then details on the next lines indented by three spaces, with a blank line between topics. Lead with the answer, then the detail. Keep it tight and scannable.`
@@ -87,6 +89,7 @@ export async function POST(request: Request) {
           cb: {
             onTool: (label) => send({ tool: label }),
             onText: (t) => { if (t) send({ text: t }) },
+            onProposedAction: (a) => send({ proposedAction: a }),
           },
         })
         // No answer produced → don't bill for an empty reply.

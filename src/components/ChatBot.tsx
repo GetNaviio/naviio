@@ -32,6 +32,10 @@ interface Message {
   question?: string
   decisionId?: string
   decisionParams?: Record<string, unknown>
+  /** A side-effecting action Navi proposed — runs only on the user's confirm. */
+  proposedAction?: { tool: string; summary: string; input: Record<string, unknown> }
+  actionState?: 'pending' | 'running' | 'done' | 'declined'
+  actionResult?: string
 }
 
 const verdictDot = (v: DecisionAnswer['verdict']) =>
@@ -237,6 +241,8 @@ export default function ChatBot() {
             } else if (p.tool && !acc) {
               // Live activity while the agent runs a tool (only until the answer starts).
               setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: `${p.tool}…` } : m))
+            } else if (p.proposedAction) {
+              setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, proposedAction: p.proposedAction, actionState: 'pending' } : m))
             } else if (p.error) {
               streamErr = p.error
             }
@@ -254,6 +260,28 @@ export default function ChatBot() {
       setLoading(false)
     }
   }, [messages, loading, pending])
+
+  // Run a side-effecting action Navi proposed — only on the user's explicit confirm.
+  async function confirmAction(msgId: string, action: { tool: string; input: Record<string, unknown> }) {
+    setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, actionState: 'running', actionResult: undefined } : m))
+    try {
+      const r = await fetch('/api/navi/action', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool: action.tool, input: action.input }),
+      })
+      const d = await r.json().catch(() => ({}))
+      const ok = r.ok && d?.ok
+      setMessages((prev) => prev.map((m) => m.id === msgId
+        ? { ...m, actionState: ok ? 'done' : 'pending', actionResult: ok ? 'Done.' : (d?.error || 'Could not complete that action.') }
+        : m))
+      if (ok) window.dispatchEvent(new CustomEvent('naviio:refresh')) // refresh dashboards after a change
+    } catch {
+      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, actionState: 'pending', actionResult: 'Network error — try again.' } : m))
+    }
+  }
+  function declineAction(msgId: string) {
+    setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, actionState: 'declined' } : m))
+  }
 
   // Voice input — speak to Navi; the final transcript is sent automatically.
   const voice = useVoiceInput((text) => send(text))
@@ -353,22 +381,41 @@ export default function ChatBot() {
                     <Bot size={12} style={{ color: '#00C49F' }} />
                   </div>
                 )}
-                <div
-                  className="px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed max-w-[85%]"
-                  style={{
-                    whiteSpace: 'pre-wrap',
-                    ...(isUser
-                      ? { backgroundColor: '#3B82F6', color: '#fff', borderBottomRightRadius: 4 }
-                      : { backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)', color: 'var(--color-text-primary)', borderBottomLeftRadius: 4 }),
-                  }}
-                >
-                  {msg.streaming && msg.content === '' ? <TypingDots /> : (
-                    <>
-                      {msg.content}
-                      {msg.streaming && (
-                        <span className="inline-block w-0.5 h-3.5 ml-0.5 align-middle rounded-full" style={{ backgroundColor: '#00C49F', animation: 'cb-blink 1s step-end infinite' }} />
+                <div className={`flex flex-col gap-2 ${isUser ? 'items-end' : 'items-start'} max-w-[85%]`}>
+                  <div
+                    className="px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed"
+                    style={{
+                      whiteSpace: 'pre-wrap',
+                      ...(isUser
+                        ? { backgroundColor: '#3B82F6', color: '#fff', borderBottomRightRadius: 4 }
+                        : { backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)', color: 'var(--color-text-primary)', borderBottomLeftRadius: 4 }),
+                    }}
+                  >
+                    {msg.streaming && msg.content === '' ? <TypingDots /> : (
+                      <>
+                        {msg.content}
+                        {msg.streaming && (
+                          <span className="inline-block w-0.5 h-3.5 ml-0.5 align-middle rounded-full" style={{ backgroundColor: '#00C49F', animation: 'cb-blink 1s step-end infinite' }} />
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Proposed action — Navi never runs side effects without this confirm. */}
+                  {!isUser && msg.proposedAction && msg.actionState && (
+                    <div className="rounded-xl px-3 py-2.5 text-xs w-full" style={{ backgroundColor: 'var(--color-surface-card-hover)', border: '1px dashed #3B82F6' }}>
+                      <p className="font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>{msg.proposedAction.summary}</p>
+                      {msg.actionState === 'pending' && (
+                        <div className="flex gap-2">
+                          <button onClick={() => confirmAction(msg.id, msg.proposedAction!)} className="px-2.5 py-1 rounded-lg font-semibold text-white" style={{ background: 'linear-gradient(135deg,#2F6BFF,#1E5BE6)' }}>Confirm</button>
+                          <button onClick={() => declineAction(msg.id)} className="px-2.5 py-1 rounded-lg" style={{ border: '1px solid var(--color-surface-border)', color: 'var(--color-text-secondary)' }}>Not now</button>
+                        </div>
                       )}
-                    </>
+                      {msg.actionState === 'running' && <p style={{ color: 'var(--color-text-muted)' }}>Working…</p>}
+                      {msg.actionState === 'done' && <p style={{ color: '#10B981' }}>✓ {msg.actionResult ?? 'Done.'}</p>}
+                      {msg.actionState === 'declined' && <p style={{ color: 'var(--color-text-muted)' }}>Dismissed.</p>}
+                      {msg.actionState === 'pending' && msg.actionResult && <p className="mt-1.5" style={{ color: '#F87171' }}>{msg.actionResult}</p>}
+                    </div>
                   )}
                 </div>
                 {isUser && (
