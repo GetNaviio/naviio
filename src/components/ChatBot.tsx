@@ -271,10 +271,14 @@ export default function ChatBot() {
       })
       const d = await r.json().catch(() => ({}))
       const ok = r.ok && d?.ok
+      // Some actions return a document URL to open (e.g. the board pack) rather
+      // than mutating data.
+      const url = typeof d?.result?.url === 'string' ? d.result.url : null
+      if (ok && url) window.open(url, '_blank', 'noopener')
       setMessages((prev) => prev.map((m) => m.id === msgId
-        ? { ...m, actionState: ok ? 'done' : 'pending', actionResult: ok ? 'Done.' : (d?.error || 'Could not complete that action.') }
+        ? { ...m, actionState: ok ? 'done' : 'pending', actionResult: ok ? (url ? 'Opened in a new tab — use Print → Save as PDF.' : 'Done.') : (d?.error || 'Could not complete that action.') }
         : m))
-      if (ok) window.dispatchEvent(new CustomEvent('naviio:refresh')) // refresh dashboards after a change
+      if (ok && !url) window.dispatchEvent(new CustomEvent('naviio:refresh')) // refresh dashboards after a data change
     } catch {
       setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, actionState: 'pending', actionResult: 'Network error — try again.' } : m))
     }

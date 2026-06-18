@@ -256,6 +256,17 @@ export const NAVI_TOOLS: NaviTool[] = [
       return { ok: true, scenarioId: row.id, name }
     },
   },
+  {
+    name: 'export_board_pack',
+    label: 'Preparing your board pack',
+    description:
+      'Generate a board-ready financial pack (key metrics, P&L year-to-date, top expenses) the user can save as PDF. Propose this when the user asks for a board update, investor update, or a PDF/export of their financials.',
+    kind: 'action',
+    input_schema: NO_INPUT,
+    summarize: () => 'Generate a board-ready financial pack (cash, runway, P&L, top expenses) you can save as PDF.',
+    // Read-only: generation happens in the route when the link is opened.
+    run: async () => ({ ok: true, url: '/api/navi/board-pack', openInNewTab: true }),
+  },
 ]
 
 export const READ_TOOLS = NAVI_TOOLS.filter((t) => t.kind === 'read')
