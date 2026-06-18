@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import Header from '@/components/layout/Header'
 import IntegrationCard from '@/components/integrations/IntegrationCard'
 import IntegrationCatalog from '@/components/integrations/IntegrationCatalog'
+// ⚠️ TEMPORARY (sandbox testing) — remove with the component. See TempStripeKeyConnect.tsx.
+import TempStripeKeyConnect from '@/components/integrations/TempStripeKeyConnect'
 import PlaidLinkButton from '@/components/integrations/PlaidLink'
 import { RefreshCw, CheckCircle2, AlertTriangle, PlusCircle } from 'lucide-react'
 import type { Integration } from '@/types'
@@ -303,6 +305,12 @@ export default function IntegrationsPage() {
             </button>
           </div>
         </div>
+
+        {/* ⚠️ TEMPORARY (sandbox testing) — paste-a-key Stripe connect, env-gated so
+            it never renders for real users. Remove with the component. */}
+        {process.env.NEXT_PUBLIC_STRIPE_KEY_CONNECT === '1' && (
+          <TempStripeKeyConnect onConnected={(msg, ok) => { showToast(msg, ok ? 'ok' : 'err', ok ? 'stripe' : undefined); if (ok) fetchStatus() }} />
+        )}
 
         {/* Shopify domain input */}
         {showShopInput && (
