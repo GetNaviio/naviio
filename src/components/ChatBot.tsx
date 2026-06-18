@@ -202,7 +202,7 @@ export default function ChatBot() {
     ]
 
     try {
-      const res = await fetch('/api/insights/chat', {
+      const res = await fetch('/api/navi/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: history }),
@@ -234,6 +234,9 @@ export default function ChatBot() {
               acc += p.text
               const display = cleanNaviText(acc)
               setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: display } : m))
+            } else if (p.tool && !acc) {
+              // Live activity while the agent runs a tool (only until the answer starts).
+              setMessages((prev) => prev.map((m) => m.id === asstId ? { ...m, content: `${p.tool}…` } : m))
             } else if (p.error) {
               streamErr = p.error
             }
