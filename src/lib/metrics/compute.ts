@@ -3,7 +3,18 @@
  * from the environment — callers pass the rows and the window, so every number
  * is deterministic and unit-tested.
  */
-import { classify, resolveVendorCategories, resolveTxnCategory, type LedgerTxn, type CategoryOverrides, type CommunityPrior } from './classify'
+import { classifyWithOverride, resolveVendorCategories, resolveTxnCategory, vendorKey, type LedgerTxn, type CategoryOverrides, type CommunityPrior } from './classify'
+
+/** The user's explicit override for a row (per-transaction wins over per-vendor), or null. */
+function userOverrideFor(
+  t: LedgerTxn & { externalId?: string | null },
+  overrides?: CategoryOverrides,
+): string | null {
+  if (!overrides) return null
+  if (t.externalId && overrides.byTxn[t.externalId]) return overrides.byTxn[t.externalId]
+  const vk = vendorKey(t)
+  return (vk && overrides.byVendor[vk]) || null
+}
 
 export interface DatedLedgerTxn extends LedgerTxn {
   date: Date | string
@@ -70,14 +81,16 @@ export function incomeStatement(
 
   for (const t of txns) {
     if (!inWindow(t.date, from, to)) continue
-    const c = classify(t)
+    // Effective bucket honors a user's cross-bucket override (e.g. a mislabeled
+    // transfer the user reclassified as an expense, or a row excluded from P&L).
+    const eff = classifyWithOverride(t, userOverrideFor(t, categoryOverrides))
     const mk = monthKey(t.date)
     const m = months.get(mk) ?? { income: 0, expenses: 0 }
 
-    if (c.bucket === 'REVENUE') {
+    if (eff.bucket === 'REVENUE') {
       totalIncome += t.amount
       m.income += t.amount
-    } else if (c.bucket === 'EXPENSE') {
+    } else if (eff.bucket === 'EXPENSE') {
       totalExpenses += t.amount
       m.expenses += t.amount
       const cat = resolveTxnCategory(t, vendorCat, categoryOverrides?.byTxn ?? {})
@@ -111,7 +124,7 @@ export function incomeStatement(
  * A Stripe payout counts as cash IN; internal account transfers are excluded;
  * loan principal counts as cash OUT. Operates on Plaid-style rows only.
  */
-export function cashFlow(txns: DatedLedgerTxn[], from?: Date, to?: Date): CashFlow {
+export function cashFlow(txns: DatedLedgerTxn[], from?: Date, to?: Date, categoryOverrides?: CategoryOverrides): CashFlow {
   let cashIn = 0
   let cashOut = 0
   const months = new Map<string, { cashIn: number; cashOut: number }>()
@@ -119,8 +132,10 @@ export function cashFlow(txns: DatedLedgerTxn[], from?: Date, to?: Date): CashFl
   for (const t of txns) {
     if (t.source !== 'plaid') continue           // cash = actual bank activity
     if (!inWindow(t.date, from, to)) continue
-    const c = classify(t)
-    if (c.transferKind === 'INTERNAL') continue  // own-account move, not cash flow
+    // Honor user overrides: a row excluded from P&L (or auto-internal) is not cash
+    // flow; a transfer the user reclassified as an expense IS real cash out.
+    const eff = classifyWithOverride(t, userOverrideFor(t, categoryOverrides))
+    if (!eff.inCashFlow) continue                // own-account / excluded move
 
     const mk = monthKey(t.date)
     const m = months.get(mk) ?? { cashIn: 0, cashOut: 0 }

@@ -39,7 +39,7 @@ export async function GET() {
     ])
 
     const is = incomeStatement(ledger, startOfYearUTC(), undefined, catOverrides, community) // YTD income statement
-    const cf = cashFlow(ledger)                            // trailing cash flow
+    const cf = cashFlow(ledger, undefined, undefined, catOverrides) // trailing cash flow (honors overrides)
     const marketing = { thisMonth: marketingSpend(ledger, monthsAgoUTC(0)) }
     // Cap the live Plaid balance call so a slow provider can't time out the whole
     // endpoint (which would surface as an error on every dashboard tab). On

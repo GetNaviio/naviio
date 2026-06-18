@@ -12,8 +12,11 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { withOrg } from '@/lib/api/with-org'
 import { parseBody } from '@/lib/validate'
-import { USER_CATEGORIES, vendorKey, VENDOR_OVERRIDE_PREFIX } from '@/lib/metrics/classify'
+import { USER_CATEGORIES, EXCLUDE_CATEGORY, vendorKey, VENDOR_OVERRIDE_PREFIX } from '@/lib/metrics/classify'
 import { recordVendorVote } from '@/lib/metrics/community'
+
+// Reclassify targets: the expense categories plus the "exclude from P&L" option.
+const RECLASSIFY_TARGETS = [...USER_CATEGORIES, EXCLUDE_CATEGORY]
 import * as cache from '@/lib/cache'
 
 const PatchSchema = z
@@ -28,7 +31,7 @@ const PatchSchema = z
   .refine((b) => b.category !== undefined || b.expenseClass !== undefined, {
     message: 'provide category and/or expenseClass',
   })
-  .refine((b) => b.category == null || USER_CATEGORIES.includes(b.category), {
+  .refine((b) => b.category == null || RECLASSIFY_TARGETS.includes(b.category), {
     message: 'unknown category',
     path: ['category'],
   })
@@ -67,8 +70,8 @@ export const PATCH = withOrg(async (request, { orgId }) => {
           update: { category },
         })
         // Teach the cross-org community map (anonymized vendorKey → category).
-        // Fire-and-forget so a stats write never blocks the user's fix.
-        void recordVendorVote(vendorKey(txn), category)
+        // Skip the EXCLUDE sentinel — it's not a real expense category.
+        if (category !== EXCLUDE_CATEGORY) void recordVendorVote(vendorKey(txn), category)
       }
     } else {
       // Pin just this transaction (wins over the vendor default).

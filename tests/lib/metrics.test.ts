@@ -1,4 +1,4 @@
-import { classify, isStripePayout, expenseLabel, resolveVendorCategories, type LedgerTxn, type CommunityPrior } from '@/lib/metrics/classify'
+import { classify, classifyWithOverride, isStripePayout, expenseLabel, resolveVendorCategories, EXCLUDE_CATEGORY, type LedgerTxn, type CommunityPrior } from '@/lib/metrics/classify'
 import { incomeStatement, cashFlow, runwayMonths, type DatedLedgerTxn } from '@/lib/metrics/compute'
 
 const t = (o: Partial<DatedLedgerTxn>): DatedLedgerTxn => ({
@@ -67,6 +67,42 @@ describe('classify', () => {
     expect(unknown.confidence).toBeLessThan(0.5)
     expect(unknown.needsReview).toBe(true)
     expect(unknown.source).toBe('fallback')
+  })
+})
+
+describe('classifyWithOverride (cross-bucket)', () => {
+  const transfer: LedgerTxn = { source: 'plaid', type: 'DEBIT', amount: 500, category: 'TRANSFER_OUT', description: 'Move to savings' }
+  const expense: LedgerTxn = { source: 'plaid', type: 'DEBIT', amount: 300, category: 'RENT_AND_UTILITIES' }
+  const credit: LedgerTxn = { source: 'plaid', type: 'CREDIT', amount: 1000, category: 'INCOME', description: 'client wire' }
+
+  it('leaves auto classification alone with no override', () => {
+    expect(classifyWithOverride(transfer, null)).toEqual({ bucket: 'TRANSFER', inCashFlow: false })
+  })
+  it('forces a DEBIT transfer to an expense when the user reclassifies it', () => {
+    expect(classifyWithOverride(transfer, 'Software & Services')).toEqual({ bucket: 'EXPENSE', inCashFlow: true })
+  })
+  it('excludes a row from the P&L (and cash flow) when marked EXCLUDE', () => {
+    expect(classifyWithOverride(expense, EXCLUDE_CATEGORY)).toEqual({ bucket: 'TRANSFER', inCashFlow: false })
+  })
+  it('never forces a CREDIT (money-in) into an expense', () => {
+    expect(classifyWithOverride(credit, 'Software & Services').bucket).toBe('REVENUE')
+  })
+})
+
+describe('incomeStatement honors cross-bucket overrides', () => {
+  const rows: DatedLedgerTxn[] = [
+    t({ externalId: 'tx-rent', amount: 300, category: 'RENT_AND_UTILITIES', date: '2026-03-01' }),
+    t({ externalId: 'tx-mislabeled', amount: 500, category: 'TRANSFER_OUT', description: 'ACME LLC', date: '2026-03-02' }),
+  ]
+  it('counts a transfer the user reclassified as an expense', () => {
+    const base = incomeStatement(rows, undefined, undefined)
+    expect(base.totalExpenses).toBe(300) // the TRANSFER_OUT row is excluded by default
+    const fixed = incomeStatement(rows, undefined, undefined, { byVendor: {}, byTxn: { 'tx-mislabeled': 'Software & Services' } })
+    expect(fixed.totalExpenses).toBe(800) // now included
+  })
+  it('drops an expense the user excluded from the P&L', () => {
+    const excluded = incomeStatement(rows, undefined, undefined, { byVendor: {}, byTxn: { 'tx-rent': EXCLUDE_CATEGORY } })
+    expect(excluded.totalExpenses).toBe(0)
   })
 })
 

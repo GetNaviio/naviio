@@ -383,3 +383,33 @@ export function resolveTxnCategoryDetailed(
   const category = base.expenseCategory ?? 'Other'
   return { category, confidence: base.confidence, source: base.source, needsReview: category === 'Other' }
 }
+
+// ─── Cross-bucket override ──────────────────────────────────────────────────
+// A user can correct what BUCKET a row belongs to — not just its expense label:
+//   • a DEBIT the engine tagged TRANSFER/CAPITAL that's really an operating cost
+//     (e.g. Plaid mislabeled a vendor ACH) → reclassify to an expense category
+//     and it counts in the P&L + cash flow;
+//   • a row that's actually an internal move → mark EXCLUDE so it drops off the
+//     P&L (treated as an internal transfer).
+// CREDIT (money-in) rows can't be forced to an expense (avoids nonsense).
+export const EXCLUDE_CATEGORY = 'Exclude (transfer / not P&L)'
+const EXPENSE_CATEGORY_SET = new Set(USER_CATEGORIES) // real expense labels (excludes the EXCLUDE sentinel)
+
+/** Categories the reclassify UI offers: the expense labels plus the EXCLUDE option. */
+export const RECLASSIFY_OPTIONS: string[] = [...USER_CATEGORIES, EXCLUDE_CATEGORY]
+
+export interface EffectiveClassification { bucket: Bucket; inCashFlow: boolean }
+
+/**
+ * The bucket after applying a USER override (byTxn or byVendor — not auto labels).
+ * Used by the metric engine so a reclassification actually moves the money.
+ *   override = EXCLUDE_CATEGORY            → TRANSFER, off cash flow (internal move)
+ *   override = expense category + DEBIT    → EXPENSE, counts as cash out
+ *   otherwise                              → the auto classification (INTERNAL excluded from cash)
+ */
+export function classifyWithOverride(t: LedgerTxn, override?: string | null): EffectiveClassification {
+  const c = classify(t)
+  if (override === EXCLUDE_CATEGORY) return { bucket: 'TRANSFER', inCashFlow: false }
+  if (override && t.type === 'DEBIT' && EXPENSE_CATEGORY_SET.has(override)) return { bucket: 'EXPENSE', inCashFlow: true }
+  return { bucket: c.bucket, inCashFlow: c.transferKind !== 'INTERNAL' }
+}

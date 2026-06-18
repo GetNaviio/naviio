@@ -1,6 +1,6 @@
 import { requireAuth, getDefaultOrgId } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { classify, resolveVendorCategories, resolveTxnCategoryDetailed, vendorKey } from '@/lib/metrics/classify'
+import { classify, classifyWithOverride, resolveVendorCategories, resolveTxnCategoryDetailed, vendorKey } from '@/lib/metrics/classify'
 import { classifyExpense } from '@/lib/model/cogs'
 import { loadPrimaryLedger, categoryOverrides, classificationOverrides } from '@/lib/metrics/ledger'
 import { getCommunityPrior } from '@/lib/metrics/community'
@@ -64,12 +64,16 @@ export async function GET(request: Request) {
         externalId: r.externalId,
       }
       const c = classify(ledgerTxn)
-      const isExpense = c.bucket === 'EXPENSE'
+      // Effective bucket honors a user cross-bucket override (transfer→expense, or
+      // exclude→transfer) so a reclassified row appears on the right tab.
+      const userOverride = (r.externalId && catOverrides.byTxn[r.externalId]) || catOverrides.byVendor[vendorKey(ledgerTxn)] || null
+      const eff = classifyWithOverride(ledgerTxn, userOverride)
+      const isExpense = eff.bucket === 'EXPENSE'
       const classOverride = r.externalId ? classOverrides[r.externalId] : undefined
       const resolved = resolveTxnCategoryDetailed(ledgerTxn, vendorCat, catOverrides.byTxn, { overrideVendors, community })
       const label =
-        c.bucket === 'REVENUE' ? 'Revenue' :
-        c.bucket === 'TRANSFER' ? 'Transfer' :
+        eff.bucket === 'REVENUE' ? 'Revenue' :
+        eff.bucket === 'TRANSFER' ? 'Transfer' :
         resolved.category
       // Marked as user-fixed when a per-transaction OR vendor override applies.
       const overridden = isExpense && (

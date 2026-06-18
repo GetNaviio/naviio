@@ -218,8 +218,9 @@ export default function CashFlowPage() {
               title="Transfers"
               subtitle="Account-to-account movement and Stripe payouts — excluded from your P&L"
               category="Transfer"
-              tooltip="Internal transfers, loan principal, and Stripe payouts. These move cash but are not income or expense, so they're excluded from the P&L (they belong here, not on the Expenses tab)."
+              tooltip="Internal transfers, loan principal, and Stripe payouts. These move cash but are not income or expense, so they're excluded from the P&L. If one is actually an operating expense, reclassify it here and it'll move into your P&L."
               emptyText="No transfers detected."
+              reclassifiable
             />
 
             <p className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>

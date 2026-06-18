@@ -17,7 +17,7 @@ import FreshnessLine, { type MonthlyMeta } from '@/components/model/FreshnessLin
 import AdInsightPopover from '@/components/ads/AdInsightPopover'
 import ProvenanceDrawer, { type ProvenanceQuery } from '@/components/provenance/ProvenanceDrawer'
 import { detectAdPlatform } from '@/lib/ads/match'
-import { USER_CATEGORIES } from '@/lib/metrics/classify'
+import { RECLASSIFY_OPTIONS } from '@/lib/metrics/classify'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { formatCurrency } from '@/lib/utils'
 import { CreditCard, TrendingUp, Layers, X, ChevronDown, CalendarDays, Pencil, Sparkles } from 'lucide-react'
@@ -476,7 +476,7 @@ export default function ExpensesPage() {
                                   style={{ backgroundColor: 'var(--color-surface-input)', color: 'var(--color-text-primary)', border: '1px solid #3B82F6' }}
                                   aria-label="Reclassify transaction"
                                 >
-                                  {USER_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                                  {RECLASSIFY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
                                   {tx.overridden && <option value="__auto__">↺ Reset to auto</option>}
                                 </select>
                               ) : (

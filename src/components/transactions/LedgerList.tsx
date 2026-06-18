@@ -9,19 +9,39 @@
 import { useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
 import { formatCurrency } from '@/lib/utils'
+import { USER_CATEGORIES } from '@/lib/metrics/classify'
 import type { Transaction } from '@/types'
 
 export default function LedgerList({
-  title, subtitle, category, tooltip, emptyText,
+  title, subtitle, category, tooltip, emptyText, reclassifiable,
 }: {
   title: string
   subtitle?: string
   category: 'Revenue' | 'Transfer'
   tooltip?: string
   emptyText?: string
+  /** Allow moving a row to an expense category (the "transfer that's really an
+   *  expense" case). The metric engine honors the override across the P&L. */
+  reclassifiable?: boolean
 }) {
   const [rows, setRows] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  async function reclassify(externalId: string, value: string) {
+    if (!value) return
+    setBusy(externalId)
+    try {
+      const r = await fetch('/api/transactions/classify', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        // Per-transaction so a single mislabeled row moves without re-tagging the vendor.
+        body: JSON.stringify({ externalId, category: value, applyToVendor: false }),
+      })
+      if (r.ok) window.dispatchEvent(new CustomEvent('naviio:refresh')) // moves it off this ledger + into the P&L
+    } finally {
+      setBusy(null)
+    }
+  }
 
   useEffect(() => {
     let alive = true
@@ -51,11 +71,12 @@ export default function LedgerList({
               {['Date', 'Description', 'Amount'].map((h) => (
                 <th key={h} className={`px-4 py-3 font-medium ${h === 'Amount' ? 'text-right' : 'text-left'}`} style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>{h}</th>
               ))}
+              {reclassifiable && <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>Reclassify</th>}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td colSpan={3} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              <tr><td colSpan={reclassifiable ? 4 : 3} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
                 {loading ? 'Loading…' : (emptyText ?? `No ${isRevenue ? 'revenue' : 'transfer'} transactions yet.`)}
               </td></tr>
             ) : (
@@ -69,6 +90,23 @@ export default function LedgerList({
                   <td className="px-4 py-3 text-right font-medium" style={{ color: tx.type === 'credit' ? inColor : 'var(--color-text-secondary)' }}>
                     {tx.type === 'credit' ? '+' : '−'}{formatCurrency(tx.amount, true)}
                   </td>
+                  {reclassifiable && (
+                    <td className="px-4 py-3 text-right">
+                      {tx.externalId ? (
+                        <select
+                          value=""
+                          disabled={busy === tx.externalId}
+                          onChange={(e) => reclassify(tx.externalId!, e.target.value)}
+                          className="px-1.5 py-1 rounded text-xs outline-none cursor-pointer disabled:opacity-50"
+                          style={{ backgroundColor: 'var(--color-surface-input)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-surface-border)' }}
+                          aria-label="Reclassify as an expense"
+                        >
+                          <option value="">Move to…</option>
+                          {USER_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      ) : <span style={{ color: 'var(--color-surface-border)' }}>—</span>}
+                    </td>
+                  )}
                 </tr>
               ))
             )}
