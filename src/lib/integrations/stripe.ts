@@ -16,15 +16,21 @@ function getClient(secretKey?: string): Stripe {
 
 // ─── Connect (OAuth) ──────────────────────────────────────────────────────────
 
-export function getConnectAuthUrl(state: string) {
+export function getConnectAuthUrl(state: string, redirectUri?: string) {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.STRIPE_CLIENT_ID ?? '',
     // Stripe requires 'read_write' for self-serve OAuth; 'read_only' needs a
     // support request to enable. We only ever READ, so the extra grant is unused.
     scope: 'read_write',
+    // Prefer the live request origin (passed by the route) so the user always
+    // lands back on the host they started from — a stale env can't send them to
+    // a dead tunnel. Env values are a fallback only. This URI must be registered
+    // in Stripe Dashboard → Connect → OAuth → Redirects.
     redirect_uri:
-      process.env.STRIPE_REDIRECT_URI ?? `${process.env.NEXT_PUBLIC_BASE_URL}/api/auth/stripe/callback`,
+      redirectUri ||
+      process.env.STRIPE_REDIRECT_URI ||
+      `${process.env.NEXT_PUBLIC_BASE_URL ?? ''}/api/auth/stripe/callback`,
     state,
   })
   return `${STRIPE_CONNECT_AUTH}?${params}`
