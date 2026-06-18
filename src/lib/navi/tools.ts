@@ -25,6 +25,10 @@ import {
   buildAffordabilityAnswer, buildCapexAnswer, buildRunwayPathAnswer,
   type AffordabilityParams, type CapexParams, type RunwayPathParams,
 } from '@/lib/decisions/templates'
+import { persistDecision } from '@/lib/decisions/persist'
+
+/** Per-call context the agent/route injects — never supplied by the model. */
+export interface NaviToolCtx { userId?: string; question?: string }
 
 export interface NaviTool {
   name: string
@@ -33,7 +37,7 @@ export interface NaviTool {
   description: string
   kind: 'read' | 'action'
   input_schema: { type: 'object'; properties: Record<string, unknown>; required?: string[] }
-  run: (orgId: string, input: Record<string, unknown>) => Promise<unknown>
+  run: (orgId: string, input: Record<string, unknown>, ctx?: NaviToolCtx) => Promise<unknown>
   /** Actions only: a human-readable summary of what will happen, shown on the
    *  confirm card. The action is NEVER run by the agent loop — only after the
    *  user confirms it (POST /api/navi/action). */
@@ -140,7 +144,7 @@ export const NAVI_TOOLS: NaviTool[] = [
       },
       required: ['template', 'params'],
     },
-    run: async (orgId, input) => {
+    run: async (orgId, input, toolCtx) => {
       const ctx = await getFinancialContext(orgId)
       const template = String(input.template)
       const p = (input.params ?? {}) as Record<string, unknown>
@@ -148,6 +152,11 @@ export const NAVI_TOOLS: NaviTool[] = [
         template === 'affordability' ? buildAffordabilityAnswer(ctx, p as unknown as AffordabilityParams)
         : template === 'capex' ? buildCapexAnswer(ctx, p as unknown as CapexParams)
         : buildRunwayPathAnswer(ctx, p as unknown as RunwayPathParams)
+      // Log the decision so agent-run decisions also feed the outcome loop /
+      // follow-up cron (parity with the explicit chat decision path).
+      if (toolCtx?.userId) {
+        void persistDecision({ orgId, userId: toolCtx.userId, template, question: toolCtx.question ?? null, params: p, answer })
+      }
       return {
         verdict: answer.verdict, headline: answer.headline, summary: answer.summary,
         figures: answer.stats, considerations: answer.considerations, confidence: answer.confidence,
@@ -211,6 +220,40 @@ export const NAVI_TOOLS: NaviTool[] = [
       }
       await cache.delPattern(`org:${orgId}:*`)
       return { ok: true, category, appliedTo: applyToVendor ? 'vendor' : 'transaction' }
+    },
+  },
+  {
+    name: 'create_scenario',
+    label: 'Saving a forecast scenario',
+    description:
+      'Create a custom forecast scenario the user can model on the Forecast tab. Multipliers are relative to the base case (1 = unchanged, 1.2 = +20%, 0.8 = -20%), each between 0 and 10. ' +
+      'Propose this when the user describes a what-if they want saved (e.g. "model 30% faster growth with double churn").',
+    kind: 'action',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Short scenario name.' },
+        growthMultiplier: { type: 'number', description: 'Revenue-growth multiplier vs base (1 = unchanged).' },
+        churnMultiplier: { type: 'number', description: 'Churn multiplier vs base.' },
+        opexGrowthMultiplier: { type: 'number', description: 'Opex-growth multiplier vs base.' },
+      },
+      required: ['name', 'growthMultiplier', 'churnMultiplier', 'opexGrowthMultiplier'],
+    },
+    summarize: (input) =>
+      `Save forecast scenario "${String(input.name)}" — growth ×${Number(input.growthMultiplier)}, churn ×${Number(input.churnMultiplier)}, opex ×${Number(input.opexGrowthMultiplier)}.`,
+    run: async (orgId, input) => {
+      const name = String(input.name ?? '').trim().slice(0, 100)
+      const clamp = (v: unknown) => Math.max(0, Math.min(10, Number(v)))
+      const growthMultiplier = clamp(input.growthMultiplier)
+      const churnMultiplier = clamp(input.churnMultiplier)
+      const opexGrowthMultiplier = clamp(input.opexGrowthMultiplier)
+      if (!name || ![growthMultiplier, churnMultiplier, opexGrowthMultiplier].every(Number.isFinite)) {
+        return { ok: false, error: 'A name and three finite multipliers (0–10) are required.' }
+      }
+      const row = await prisma.forecastScenario.create({
+        data: { orgId, name, growthMultiplier, churnMultiplier, opexGrowthMultiplier },
+      })
+      return { ok: true, scenarioId: row.id, name }
     },
   },
 ]

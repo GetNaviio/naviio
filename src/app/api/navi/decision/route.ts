@@ -12,6 +12,7 @@ import { withOrg } from '@/lib/api/with-org'
 import { chargeCredits, addCredits, InsufficientCreditsError } from '@/lib/credits/account'
 import { costOf } from '@/lib/credits/rates'
 import { getFinancialContext } from '@/lib/decisions/context'
+import { persistDecision } from '@/lib/decisions/persist'
 import { parseDecisionQuestion } from '@/lib/decisions/parse'
 import { prisma } from '@/lib/prisma'
 import {
@@ -90,13 +91,9 @@ export const POST = withOrg(async (request, { user, orgId }) => {
       : buildRunwayPathAnswer(ctx, params as unknown as RunwayPathParams)
 
     // Persist the decision — the proprietary, compounding dataset behind the moat
-    // (question, inputs, verdict; outcome captured later). Raw insert so it works
-    // without regenerating the Prisma client in CI; never blocks the response.
-    const decisionId = crypto.randomUUID()
-    await prisma.$executeRaw`
-      INSERT INTO "DecisionLog" ("id","orgId","userId","template","question","verdict","headline","confidence","params","answer","createdAt")
-      VALUES (${decisionId}, ${orgId}, ${user.id}, ${template}, ${questionText || null}, ${answer.verdict}, ${answer.headline}, ${answer.confidence}, ${JSON.stringify(params)}::jsonb, ${JSON.stringify(answer)}::jsonb, now())
-    `.catch((e: unknown) => console.error('decision log persist failed (response still returned):', e))
+    // (question, inputs, verdict; outcome captured later). Shared helper, also used
+    // by the Navi agent's run_decision tool so both paths feed the outcome loop.
+    const decisionId = await persistDecision({ orgId, userId: user.id, template, question: questionText, params, answer })
 
     return Response.json({
       answer,

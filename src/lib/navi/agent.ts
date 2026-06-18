@@ -33,6 +33,7 @@ function buildTools(): AnyTool[] {
 
 export async function runNaviAgent(opts: {
   orgId: string
+  userId?: string
   system: string
   messages: { role: 'user' | 'assistant'; content: string }[]
   cb: AgentCallbacks
@@ -41,6 +42,9 @@ export async function runNaviAgent(opts: {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const maxSteps = opts.maxSteps ?? 6
   const tools = buildTools()
+  // Context tools may use (e.g. run_decision persists with userId + the question).
+  const lastUser = [...opts.messages].reverse().find((m) => m.role === 'user')
+  const toolCtx = { userId: opts.userId, question: lastUser?.content }
 
   const convo: Anthropic.MessageParam[] = opts.messages.map((m) => ({ role: m.role, content: m.content }))
   const usedTools: string[] = []
@@ -83,7 +87,7 @@ export async function runNaviAgent(opts: {
       if (tool) { opts.cb.onTool(tool.label, tool.name); usedTools.push(tool.name) }
       let out: unknown
       try {
-        out = tool ? await tool.run(opts.orgId, (b.input ?? {}) as Record<string, unknown>) : { error: `unknown tool: ${b.name}` }
+        out = tool ? await tool.run(opts.orgId, (b.input ?? {}) as Record<string, unknown>, toolCtx) : { error: `unknown tool: ${b.name}` }
       } catch (e) {
         out = { error: e instanceof Error ? e.message : 'tool failed' }
       }
