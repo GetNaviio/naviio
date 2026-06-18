@@ -33,6 +33,29 @@ export function percentileValue(buckets: { bucket: number; orgs: number }[], p: 
   return bucketValue(sorted[sorted.length - 1].bucket)
 }
 
+// ─── Ratio buckets (category spend ÷ revenue, in %) ─────────────────────────
+/** spend÷revenue (a fraction) → 0.5%-resolution bucket index. */
+export function ratioToBucket(ratio: number): number {
+  if (!(ratio > 0)) return 0
+  return Math.round(ratio * 100 * 2) // % × 2 → half-percent buckets
+}
+
+/** Representative percent value at a ratio bucket. */
+export function ratioBucketPct(bucket: number): number {
+  return Math.round((bucket / 2) * 10) / 10
+}
+
+/** Estimate the p-th percentile (as a %) from ratio-histogram buckets. */
+export function ratioPercentilePct(buckets: { bucket: number; orgs: number }[], p: number): number | null {
+  const total = buckets.reduce((s, b) => s + b.orgs, 0)
+  if (total === 0) return null
+  const sorted = [...buckets].sort((a, b) => a.bucket - b.bucket)
+  const target = p * total
+  let cum = 0
+  for (const b of sorted) { cum += b.orgs; if (cum >= target) return ratioBucketPct(b.bucket) }
+  return ratioBucketPct(sorted[sorted.length - 1].bucket)
+}
+
 // ─── Size segments ──────────────────────────────────────────────────────────
 export const SIZE_BANDS = ['lt_250k', '250k_1m', '1m_5m', '5m_20m', 'gt_20m'] as const
 export type SizeBand = (typeof SIZE_BANDS)[number]

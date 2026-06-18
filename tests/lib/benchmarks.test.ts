@@ -1,4 +1,4 @@
-import { amountToBucket, bucketValue, percentileValue, revenueToSegment, K_ANON } from '@/lib/benchmarks/buckets'
+import { amountToBucket, bucketValue, percentileValue, revenueToSegment, ratioToBucket, ratioBucketPct, ratioPercentilePct, K_ANON } from '@/lib/benchmarks/buckets'
 
 describe('benchmark buckets', () => {
   it('buckets monthly $ into half-octave bands and back', () => {
@@ -32,5 +32,19 @@ describe('benchmark buckets', () => {
 
   it('keeps a privacy threshold', () => {
     expect(K_ANON).toBeGreaterThanOrEqual(5)
+  })
+
+  it('buckets spend-as-%-of-revenue and reads it back in %', () => {
+    expect(ratioToBucket(0)).toBe(0)
+    expect(ratioBucketPct(ratioToBucket(0.08))).toBeCloseTo(8, 1) // 8% of revenue
+    expect(ratioBucketPct(ratioToBucket(0.14))).toBeCloseTo(14, 1)
+  })
+
+  it('estimates a category-% median from a histogram', () => {
+    const lo = ratioToBucket(0.08) // 8%
+    const hi = ratioToBucket(0.16) // 16%
+    const hist = [{ bucket: lo, orgs: 7 }, { bucket: hi, orgs: 3 }]
+    expect(ratioPercentilePct(hist, 0.5)).toBeCloseTo(8, 1)
+    expect(ratioPercentilePct([], 0.5)).toBeNull()
   })
 })

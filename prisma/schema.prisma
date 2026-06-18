@@ -545,6 +545,21 @@ model VendorSpendStat {
   @@index([segment, vendorKey])
 }
 
+// Peer-benchmark aggregates for spend-as-%-of-revenue by category and size band.
+// Same privacy posture as VendorSpendStat: histogram of distinct-org counts per
+// percent bucket, no amounts/identity. Surfaced only at >= 5 orgs (k-anon).
+model CategorySpendStat {
+  id        String   @id @default(cuid())
+  category  String   // a USER_CATEGORIES label
+  segment   String   // size band
+  bucket    Int      // 0.5%-of-revenue bucket index (see lib/benchmarks/buckets)
+  orgs      Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([category, segment, bucket])
+  @@index([segment, category])
+}
+
 // ─── Forecast scenarios ─────────────────────────────────────────────────────────
 
 // User-defined forecast scenarios (multipliers applied to the base projection).

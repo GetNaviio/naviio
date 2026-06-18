@@ -21,7 +21,7 @@ import { USER_CATEGORIES, vendorKey, VENDOR_OVERRIDE_PREFIX } from '@/lib/metric
 import { recordVendorVote } from '@/lib/metrics/community'
 import { detectRecurring } from '@/lib/metrics/recurrence'
 import { revenueToSegment } from '@/lib/benchmarks/buckets'
-import { getVendorBenchmarks } from '@/lib/benchmarks/read'
+import { getVendorBenchmarks, getCategoryBenchmarks } from '@/lib/benchmarks/read'
 import { fetchAllData } from '@/lib/integrations'
 import * as cache from '@/lib/cache'
 import {
@@ -194,6 +194,37 @@ export const NAVI_TOOLS: NaviTool[] = [
         yourMonthly: yourMonthly != null ? Math.round(yourMonthly) : null,
         peerMedian: bench.median, peerP25: bench.p25, peerP75: bench.p75,
         ratioVsPeers: yourMonthly && bench.median ? Math.round((yourMonthly / bench.median) * 100) / 100 : null,
+        peers: bench.orgs,
+      }
+    },
+  },
+
+  {
+    name: 'category_benchmark',
+    label: 'Comparing spend to peers',
+    description:
+      'Compare how much of revenue the user spends on a category vs similar-size businesses (anonymized peer median). Use for "do I spend too much on payroll / software / marketing?" type questions.',
+    kind: 'read',
+    input_schema: {
+      type: 'object',
+      properties: { category: { type: 'string', enum: USER_CATEGORIES } },
+      required: ['category'],
+    },
+    run: async (orgId, input) => {
+      const category = String(input.category)
+      const overrides = await categoryOverrides(orgId).catch(() => undefined)
+      const ledger = await loadPrimaryLedger(orgId, monthsAgoUTC(12))
+      const is = incomeStatement(ledger, undefined, undefined, overrides)
+      if (is.totalIncome <= 0) return { available: false, note: 'Need revenue data to compute spend as a share of revenue.' }
+      const segment = revenueToSegment(is.totalIncome)
+      const bench = (await getCategoryBenchmarks(segment)).get(category)
+      if (!bench) return { available: false, note: 'Not enough comparable businesses yet for this category.' }
+      const yourSpend = is.expensesByCategory.find((c) => c.category === category)?.amount ?? 0
+      const yourPct = Math.round((yourSpend / is.totalIncome) * 1000) / 10
+      return {
+        available: true, category, yourPct,
+        peerMedianPct: bench.medianPct, peerP25Pct: bench.p25Pct, peerP75Pct: bench.p75Pct,
+        ratioVsPeers: bench.medianPct > 0 ? Math.round((yourPct / bench.medianPct) * 100) / 100 : null,
         peers: bench.orgs,
       }
     },

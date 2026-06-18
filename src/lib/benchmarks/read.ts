@@ -7,9 +7,10 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { loadPrimaryLedger, monthsAgoUTC } from '@/lib/metrics/ledger'
 import { incomeStatement } from '@/lib/metrics/compute'
-import { K_ANON, percentileValue, revenueToSegment, type SizeBand } from './buckets'
+import { K_ANON, percentileValue, ratioPercentilePct, revenueToSegment, type SizeBand } from './buckets'
 
 export interface VendorBenchmark { median: number; p25: number; p75: number; orgs: number }
+export interface CategoryBenchmark { medianPct: number; p25Pct: number; p75Pct: number; orgs: number }
 
 /** The org's size band, from trailing-12-month revenue. */
 export async function getOrgSegment(orgId: string): Promise<SizeBand> {
@@ -41,6 +42,32 @@ export async function getVendorBenchmarks(vendorKeys: string[], segment: string)
     }
   } catch (e) {
     console.error('vendor benchmark read failed (degrading to none):', e)
+  }
+  return out
+}
+
+/** Category spend-as-%-of-revenue benchmarks for a segment (k-anon gated). */
+export async function getCategoryBenchmarks(segment: string): Promise<Map<string, CategoryBenchmark>> {
+  const out = new Map<string, CategoryBenchmark>()
+  try {
+    const rows = await prisma.$queryRaw<Array<{ category: string; bucket: number; orgs: number }>>(
+      Prisma.sql`SELECT "category", "bucket", "orgs" FROM "CategorySpendStat" WHERE "segment" = ${segment}`,
+    )
+    const byCat = new Map<string, { bucket: number; orgs: number }[]>()
+    for (const r of rows) {
+      const list = byCat.get(r.category) ?? []
+      list.push({ bucket: Number(r.bucket), orgs: Number(r.orgs) })
+      byCat.set(r.category, list)
+    }
+    for (const [cat, buckets] of byCat) {
+      const orgs = buckets.reduce((s, b) => s + b.orgs, 0)
+      if (orgs < K_ANON) continue
+      const medianPct = ratioPercentilePct(buckets, 0.5)
+      if (medianPct == null) continue
+      out.set(cat, { medianPct, p25Pct: ratioPercentilePct(buckets, 0.25) ?? medianPct, p75Pct: ratioPercentilePct(buckets, 0.75) ?? medianPct, orgs })
+    }
+  } catch (e) {
+    console.error('category benchmark read failed (degrading to none):', e)
   }
   return out
 }

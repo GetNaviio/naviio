@@ -109,16 +109,19 @@ export default function ExpensesPage() {
     return () => { alive = false }
   }, [sel, reloadKey])
 
-  // Peer benchmarks for recurring vendors (vendorKey → { peerMedian, ratio }).
+  // Peer benchmarks: vendor (vendorKey → ratio) + category (spend ÷ revenue vs peers).
   const [benchmarks, setBenchmarks] = useState<Record<string, { peerMedian: number; ratio: number; orgs: number }>>({})
+  const [catBenchmarks, setCatBenchmarks] = useState<Array<{ category: string; yourPct: number; peerMedianPct: number; ratio: number; orgs: number }>>([])
   useEffect(() => {
     let alive = true
     fetch('/api/benchmarks')
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive) setBenchmarks(d?.vendors ?? {}) })
+      .then((d) => { if (alive) { setBenchmarks(d?.vendors ?? {}); setCatBenchmarks(d?.categories ?? []) } })
       .catch(() => {})
     return () => { alive = false }
   }, [reloadKey])
+  // Categories where this org spends a notably higher share of revenue than peers.
+  const abovePeerCategories = useMemo(() => catBenchmarks.filter((c) => c.ratio >= 1.15).slice(0, 4), [catBenchmarks])
 
   const connected = !!(m?.sources?.plaid || m?.sources?.stripe)
   const byYm = useMemo(() => new Map(months24.map((r) => [r.month, r])), [months24])
@@ -378,6 +381,28 @@ export default function ExpensesPage() {
                   )}
                 </Card>
               </div>
+            )}
+
+            {abovePeerCategories.length > 0 && (
+              <Card
+                title="How you compare"
+                subtitle="Categories where you spend a bigger share of revenue than similar businesses"
+                tooltip="Your spend in each category as a percent of revenue, vs the median of anonymized similar-size businesses (shown only when there are enough peers)."
+              >
+                <div className="space-y-2.5">
+                  {abovePeerCategories.map((c) => (
+                    <div key={c.category} className="flex items-center justify-between gap-3">
+                      <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{c.category}</span>
+                      <span className="text-sm flex items-center gap-2">
+                        <span className="font-semibold" style={{ color: '#F59E0B' }}>you {c.yourPct}%</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>· peers {c.peerMedianPct}%</span>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#F59E0B' }}>{c.ratio}×</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] mt-3" style={{ color: 'var(--color-text-muted)' }}>Anonymized, aggregated across similar-size businesses — never any single company&apos;s data.</p>
+              </Card>
             )}
 
             <div ref={tableRef}>
