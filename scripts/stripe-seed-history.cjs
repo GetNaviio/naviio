@@ -75,10 +75,16 @@ async function advanceTo(clockId, date) {
   await waitReady(clockId);
 }
 
-(async () => {
-  console.log(`Seeding ${MONTHS} months of Stripe history via a Test Clock…`);
+// Stripe caps a single test clock at 3 customers, so we use one clock per
+// "cohort" of ≤3 customers, each joining at a different past month. Staggered
+// start dates give a natural customer-growth curve, and each clock generates its
+// own dated monthly invoices as we advance it to today.
+const MAX_PER_CLOCK = 3;
 
-  // Prices (not tied to the clock).
+(async () => {
+  console.log(`Seeding ~${MONTHS} months of Stripe history via staggered Test Clocks…`);
+
+  // Prices (not tied to a clock).
   const prices = [];
   for (const p of PLANS) {
     const product = await stripe.products.create({ name: p.name });
@@ -89,75 +95,59 @@ async function advanceTo(clockId, date) {
   }
   console.log('  created 3 subscription tiers ($49 / $149 / $399 per month)');
 
-  const start = firstOfMonthUTC(-MONTHS);
-  const clock = await stripe.testHelpers.testClocks.create({
-    frozen_time: Math.floor(start.getTime() / 1000),
-    name: `Naviio seed ${new Date().toISOString().slice(0, 10)}`,
-  });
-  console.log(`  test clock starts ${start.toISOString().slice(0, 10)} (${clock.id})`);
-
-  const subs = []; // { id, itemId, name, canceled?, changed? }
   let nameIdx = 0;
+  const allSubs = []; // { id, itemId, name }
 
-  async function addCustomer(tier) {
+  async function addCustomer(clockId, tier) {
     const base = NAMES[nameIdx % NAMES.length];
     const suffix = nameIdx >= NAMES.length ? ` ${Math.floor(nameIdx / NAMES.length) + 1}` : '';
     const name = base + suffix;
     nameIdx++;
-    const customer = await stripe.customers.create({ name, email: `ar${nameIdx}@example.test`, test_clock: clock.id });
-    // Robust for test clocks: mint a PaymentMethod from a test token and attach it.
+    const customer = await stripe.customers.create({ name, email: `ar${nameIdx}@example.test`, test_clock: clockId });
     const pm = await stripe.paymentMethods.create({ type: 'card', card: { token: 'tok_visa' } });
     await stripe.paymentMethods.attach(pm.id, { customer: customer.id });
     await stripe.customers.update(customer.id, { invoice_settings: { default_payment_method: pm.id } });
     const sub = await stripe.subscriptions.create({ customer: customer.id, items: [{ price: prices[tier].id }] });
-    subs.push({ id: sub.id, itemId: sub.items.data[0].id, name });
-    return name;
+    allSubs.push({ id: sub.id, itemId: sub.items.data[0].id, name });
   }
-  async function churnOne() {
-    const s = subs.find((x) => !x.canceled);
-    if (!s) return null;
-    await stripe.subscriptions.cancel(s.id);
-    s.canceled = true;
-    return s.name;
-  }
-  async function changeTier(toTier) {
-    const s = subs.find((x) => !x.canceled && !x.changed);
-    if (!s) return null;
-    await stripe.subscriptions.update(s.id, {
-      items: [{ id: s.itemId, price: prices[toTier].id }], proration_behavior: 'create_prorations',
+
+  // Cohorts: when they join (months ago) and which tiers (≤ MAX_PER_CLOCK each).
+  const cohorts = [
+    { offset: -MONTHS, tiers: [0, 1, 2] },
+    { offset: -Math.round((MONTHS * 2) / 3), tiers: [0, 1, 0] },
+    { offset: -Math.round(MONTHS / 3), tiers: [1, 2, 0] },
+  ];
+
+  for (const cohort of cohorts) {
+    const startOff = Math.max(-MONTHS, cohort.offset);
+    const start = firstOfMonthUTC(startOff);
+    const clock = await stripe.testHelpers.testClocks.create({
+      frozen_time: Math.floor(start.getTime() / 1000),
+      name: `Naviio cohort ${start.toISOString().slice(0, 7)}`,
     });
-    s.changed = true;
-    return s.name;
+    console.log(`  cohort joining ${start.toISOString().slice(0, 7)} (${clock.id})`);
+    for (const t of cohort.tiers.slice(0, MAX_PER_CLOCK)) await addCustomer(clock.id, t);
+    // Advance this clock month-by-month to the present, generating invoices.
+    for (let off = startOff + 1; off <= 0; off++) await advanceTo(clock.id, firstOfMonthUTC(off));
+    await advanceTo(clock.id, new Date()); // settle the current partial month
+    console.log(`    advanced ${-startOff} months to today`);
   }
 
-  // Month-0 cohort (mixed tiers).
-  for (const t of [0, 1, 2, 0, 1, 0]) await addCustomer(t);
-  console.log(`  ${start.toISOString().slice(0, 7)}: 6 customers subscribed`);
-
-  // What happens at each subsequent month index (skipped if beyond MONTHS).
-  const schedule = {
-    2: async () => { await addCustomer(1); await addCustomer(0); console.log('    +2 new customers'); },
-    3: async () => { const n = await changeTier(1); console.log(`    upgraded ${n} → Growth`); },
-    4: async () => { await addCustomer(2); await addCustomer(0); console.log('    +2 new customers'); },
-    5: async () => { const n = await churnOne(); console.log(`    churned ${n}`); },
-    6: async () => { const n = await changeTier(1); await addCustomer(1); console.log(`    downgraded ${n} → Growth, +1 customer`); },
-    7: async () => { await addCustomer(0); console.log('    +1 new customer'); },
-    8: async () => { const n = await churnOne(); console.log(`    churned ${n}`); },
-  };
-
-  for (let i = 1; i <= MONTHS; i++) {
-    const target = firstOfMonthUTC(-MONTHS + i);
-    await advanceTo(clock.id, target);
-    console.log(`  → advanced to ${target.toISOString().slice(0, 7)}`);
-    if (schedule[i]) await schedule[i]();
+  // A couple of churns + an upgrade so movement/NRR have signal.
+  let churned = 0;
+  if (allSubs.length >= 5) {
+    await stripe.subscriptions.cancel(allSubs[0].id);
+    await stripe.subscriptions.cancel(allSubs[4].id);
+    churned = 2;
+    await stripe.subscriptions.update(allSubs[1].id, {
+      items: [{ id: allSubs[1].itemId, price: prices[2].id }], proration_behavior: 'create_prorations',
+    });
+    console.log('  applied 2 churns + 1 upgrade');
   }
-  // Settle the current partial month so this month's invoices exist too.
-  await advanceTo(clock.id, new Date());
 
-  const active = subs.filter((s) => !s.canceled).length;
-  console.log(`\nDone. ${MONTHS} months of history on test clock ${clock.id}.`);
-  console.log(`  ${active} active subscriptions, ${subs.length - active} churned.`);
-  console.log('  Connect THIS sandbox account in Naviio, then sync to pull it in.');
+  console.log(`\nDone. Seeded ${allSubs.length} customers across ${cohorts.length} cohorts.`);
+  console.log(`  ${allSubs.length - churned} active subscriptions, ${churned} churned.`);
+  console.log('  Connect THIS sandbox account in Naviio, then Sync Now to pull it in.');
 })().catch((e) => {
   console.error('Seed failed:', e?.raw?.message || e.message);
   process.exit(1);
