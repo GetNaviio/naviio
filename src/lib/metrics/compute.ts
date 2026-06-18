@@ -3,7 +3,7 @@
  * from the environment — callers pass the rows and the window, so every number
  * is deterministic and unit-tested.
  */
-import { classify, resolveVendorCategories, resolveTxnCategory, type LedgerTxn, type CategoryOverrides } from './classify'
+import { classify, resolveVendorCategories, resolveTxnCategory, type LedgerTxn, type CategoryOverrides, type CommunityPrior } from './classify'
 
 export interface DatedLedgerTxn extends LedgerTxn {
   date: Date | string
@@ -54,6 +54,9 @@ export function incomeStatement(
   to?: Date,
   /** User category overrides (per-vendor default + per-transaction). */
   categoryOverrides?: CategoryOverrides,
+  /** Cross-org community prior — fills vendors the heuristics couldn't name, so
+   *  the by-category breakdown matches the transactions table. */
+  community?: CommunityPrior,
 ): IncomeStatement {
   let totalIncome = 0
   let totalExpenses = 0
@@ -61,9 +64,9 @@ export function incomeStatement(
   const months = new Map<string, { income: number; expenses: number }>()
 
   // One category per vendor across the whole ledger (vendor override > majority
-  // signal), resolved over all rows for a stable label regardless of period.
-  // Per-transaction overrides (resolveTxnCategory) then win over the vendor default.
-  const vendorCat = resolveVendorCategories(txns, categoryOverrides?.byVendor ?? {})
+  // signal > community prior), resolved over all rows for a stable label
+  // regardless of period. Per-transaction overrides then win over the vendor default.
+  const vendorCat = resolveVendorCategories(txns, categoryOverrides?.byVendor ?? {}, community ?? new Map())
 
   for (const t of txns) {
     if (!inWindow(t.date, from, to)) continue

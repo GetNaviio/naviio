@@ -512,6 +512,23 @@ model TxnClassification {
   @@index([orgId])
 }
 
+// Cross-org "community" categorization prior. When a user reclassifies a vendor,
+// we record one anonymized vote here: (vendorKey → category, count). It holds NO
+// amounts, NO org or user identity, and NO transaction detail — only a normalized
+// merchant string and the agreed label — so it can be shared across orgs to fill
+// vendors a given org hasn't fixed and the heuristics couldn't name. This is the
+// compounding, proprietary dataset behind the categorization moat.
+model VendorCategoryStat {
+  id         String   @id @default(cuid())
+  vendorKey  String   // normalized merchant identity (see classify.vendorKey)
+  category   String   // a USER_CATEGORIES label
+  count      Int      @default(1)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([vendorKey, category])
+  @@index([vendorKey])
+}
+
 // ─── Forecast scenarios ─────────────────────────────────────────────────────────
 
 // User-defined forecast scenarios (multipliers applied to the base projection).

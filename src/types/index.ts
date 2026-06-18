@@ -80,6 +80,14 @@ export interface Transaction {
   expenseClass?: 'COGS' | 'OPEX' | 'OTHER' | null
   /** COGS/OpEx class was fixed by the user (override active) */
   cogsOverridden?: boolean
+  /** 0..1 confidence in the category (overrides = 1; uncategorized = low) */
+  confidence?: number
+  /** Which layer named the category: user / community / merchant / plaid / … */
+  categorySource?: string
+  /** Low-confidence expense that wants a human glance (review queue) */
+  needsReview?: boolean
+  /** Part of a recurring stream (regular cadence + stable amount) */
+  recurring?: boolean
 }
 
 export interface KPIMetric {

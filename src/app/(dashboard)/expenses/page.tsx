@@ -75,6 +75,8 @@ export default function ExpensesPage() {
   // Which row's COGS/OpEx tag editor is open (separate from the category editor).
   const [cogsEditing, setCogsEditing] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  // Review queue: show only low-confidence (uncategorized) expenses needing a look.
+  const [reviewOnly, setReviewOnly] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -163,7 +165,19 @@ export default function ExpensesPage() {
     if (next) setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
 
-  const filteredTx = activeCategory ? txns.filter((t) => t.category === activeCategory) : txns
+  // Recurring + larger items first within the review queue so the costly,
+  // committed outflows (payroll/rent/SaaS) surface at the top.
+  const reviewCount = useMemo(() => txns.filter((t) => t.needsReview).length, [txns])
+  const filteredTx = useMemo(() => {
+    let list = activeCategory ? txns.filter((t) => t.category === activeCategory) : txns
+    if (reviewOnly) {
+      list = list
+        .filter((t) => t.needsReview)
+        .slice()
+        .sort((a, b) => Number(b.recurring) - Number(a.recurring) || Math.abs(b.amount) - Math.abs(a.amount))
+    }
+    return list
+  }, [txns, activeCategory, reviewOnly])
 
   // Reclassify (or reset) a transaction's category — the fix-the-AI write path.
   // applyToVendor=true re-categorizes every transaction from this vendor (the
@@ -361,11 +375,28 @@ export default function ExpensesPage() {
                     : `${filteredTx.length}${activeCategory ? ` in "${activeCategory}"` : ''} · ${scope.kind === 'month' ? scope.label : `${txns.length} most recent`}`
                 }
                 padding={false}
-                action={activeCategory ? (
-                  <button onClick={() => setActiveCategory(null)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#3B82F6' }}>
-                    <X size={11} /> Clear
-                  </button>
-                ) : undefined}
+                action={
+                  <div className="flex items-center gap-1.5">
+                    {reviewCount > 0 && (
+                      <button
+                        onClick={() => setReviewOnly((v) => !v)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
+                        style={reviewOnly
+                          ? { backgroundColor: '#F59E0B', color: '#1A1A1A' }
+                          : { backgroundColor: 'rgba(245,158,11,0.15)', color: '#F59E0B' }}
+                        title="Uncategorized expenses Navi isn't confident about"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: reviewOnly ? '#1A1A1A' : '#F59E0B' }} />
+                        {reviewOnly ? 'Showing review' : `Needs review · ${reviewCount}`}
+                      </button>
+                    )}
+                    {activeCategory && (
+                      <button onClick={() => setActiveCategory(null)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#3B82F6' }}>
+                        <X size={11} /> Clear
+                      </button>
+                    )}
+                  </div>
+                }
               >
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -451,6 +482,16 @@ export default function ExpensesPage() {
                                     <Badge variant={tx.category === 'Revenue' ? 'success' : tx.category === 'Transfer' ? 'info' : 'neutral'} size="sm">{tx.category}</Badge>
                                   </button>
                                   {tx.overridden && <Sparkles size={10} style={{ color: '#14B8A6' }} aria-label="Reclassified by you" />}
+                                  {!tx.overridden && tx.needsReview && (
+                                    <button
+                                      onClick={() => setEditing(tx.id)}
+                                      className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                                      style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#F59E0B' }}
+                                      title={tx.recurring ? 'Recurring charge Navi could not categorize — please confirm' : "Navi isn't sure of this category — please confirm"}
+                                    >
+                                      {tx.recurring ? 'Review · recurring' : 'Review'}
+                                    </button>
+                                  )}
                                   {tx.editable && (
                                     <button
                                       onClick={() => setEditing(tx.id)}

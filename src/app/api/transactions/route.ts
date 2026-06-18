@@ -1,8 +1,10 @@
 import { requireAuth, getDefaultOrgId } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { classify, resolveVendorCategories, resolveTxnCategory, vendorKey } from '@/lib/metrics/classify'
+import { classify, resolveVendorCategories, resolveTxnCategoryDetailed, vendorKey } from '@/lib/metrics/classify'
 import { classifyExpense } from '@/lib/model/cogs'
 import { loadPrimaryLedger, categoryOverrides, classificationOverrides } from '@/lib/metrics/ledger'
+import { getCommunityPrior } from '@/lib/metrics/community'
+import { detectRecurring, recurringVendorKeys } from '@/lib/metrics/recurrence'
 
 /**
  * Recent transactions for the Expenses table — real rows from the ledger, each
@@ -28,7 +30,7 @@ export async function GET(request: Request) {
       dateWindow = { gte: new Date(Date.UTC(y, mo - 1, 1)), lt: new Date(Date.UTC(y, mo, 1)) }
     }
 
-    const [rows, fullLedger, catOverrides, classOverrides] = await Promise.all([
+    const [rows, fullLedger, catOverrides, classOverrides, community] = await Promise.all([
       prisma.transaction.findMany({
         where: { orgId, ...(dateWindow ? { date: dateWindow } : {}) },
         orderBy: { date: 'desc' },
@@ -41,10 +43,15 @@ export async function GET(request: Request) {
       loadPrimaryLedger(orgId), // full ledger → consistent per-vendor categories
       categoryOverrides(orgId), // user category fixes (vendor-keyed) — applied everywhere
       classificationOverrides(orgId), // COGS/OpEx fixes — applied everywhere
+      getCommunityPrior(), // cross-org prior to fill vendors heuristics can't name
     ])
 
     // One category per vendor across the whole ledger — matches the metric engine.
-    const vendorCat = resolveVendorCategories(fullLedger, catOverrides.byVendor)
+    const vendorCat = resolveVendorCategories(fullLedger, catOverrides.byVendor, community)
+    const overrideVendors = new Set(Object.keys(catOverrides.byVendor))
+    // Recurring streams flag likely-commitment outflows (payroll/rent/SaaS) so
+    // the UI can prioritize the review queue, even for unknown merchants.
+    const recurring = recurringVendorKeys(detectRecurring(fullLedger))
 
     const transactions = rows.map((r) => {
       const ledgerTxn = {
@@ -59,10 +66,11 @@ export async function GET(request: Request) {
       const c = classify(ledgerTxn)
       const isExpense = c.bucket === 'EXPENSE'
       const classOverride = r.externalId ? classOverrides[r.externalId] : undefined
+      const resolved = resolveTxnCategoryDetailed(ledgerTxn, vendorCat, catOverrides.byTxn, { overrideVendors, community })
       const label =
         c.bucket === 'REVENUE' ? 'Revenue' :
         c.bucket === 'TRANSFER' ? 'Transfer' :
-        resolveTxnCategory(ledgerTxn, vendorCat, catOverrides.byTxn)
+        resolved.category
       // Marked as user-fixed when a per-transaction OR vendor override applies.
       const overridden = isExpense && (
         (!!r.externalId && !!catOverrides.byTxn[r.externalId]) ||
@@ -86,6 +94,11 @@ export async function GET(request: Request) {
         type: r.type === 'CREDIT' ? 'credit' : 'debit',
         source: r.source,
         category: label,
+        // Trust signals for the review queue + UI.
+        confidence: isExpense ? resolved.confidence : 1,
+        categorySource: isExpense ? resolved.source : c.source,
+        needsReview: isExpense && !overridden && resolved.needsReview,
+        recurring: recurring.has(vendorKey(ledgerTxn)),
         // Gross-margin split for expense rows (null for revenue/transfers).
         expenseClass,
         cogsOverridden: !!classOverride,

@@ -1,4 +1,4 @@
-import { classify, isStripePayout, expenseLabel, type LedgerTxn } from '@/lib/metrics/classify'
+import { classify, isStripePayout, expenseLabel, resolveVendorCategories, type LedgerTxn, type CommunityPrior } from '@/lib/metrics/classify'
 import { incomeStatement, cashFlow, runwayMonths, type DatedLedgerTxn } from '@/lib/metrics/compute'
 
 const t = (o: Partial<DatedLedgerTxn>): DatedLedgerTxn => ({
@@ -54,6 +54,38 @@ describe('classify', () => {
   it('maps unknown categories to Other', () => {
     expect(expenseLabel('SOMETHING_NEW')).toBe('Other')
     expect(expenseLabel(null)).toBe('Other')
+  })
+
+  it('scores confidence + flags an uncategorized expense for review', () => {
+    const known = classify({ source: 'plaid', type: 'DEBIT', amount: 6000, category: 'TRANSFER_OUT', description: 'GUSTO PAY' })
+    expect(known.confidence).toBeGreaterThan(0.8)
+    expect(known.source).toBe('merchant')
+    expect(known.needsReview).toBeFalsy()
+
+    const unknown = classify({ source: 'plaid', type: 'DEBIT', amount: 410, category: null, description: 'SQ *ACME WIDGETS LLC' })
+    expect(unknown.expenseCategory).toBe('Other')
+    expect(unknown.confidence).toBeLessThan(0.5)
+    expect(unknown.needsReview).toBe(true)
+    expect(unknown.source).toBe('fallback')
+  })
+})
+
+describe('community prior', () => {
+  const t = (description: string): LedgerTxn => ({ source: 'plaid', type: 'DEBIT', amount: 100, category: null, description })
+
+  it('fills a vendor the heuristics can not name from the community prior', () => {
+    const txns = [t('ACME WIDGETS'), t('ACME WIDGETS')]
+    // Without a prior → Other.
+    expect(resolveVendorCategories(txns).get('acme widgets')).toBe('Other')
+    // With a community prior → the agreed category.
+    const prior: CommunityPrior = new Map([['acme widgets', { category: 'Software & Services', confidence: 0.9 }]])
+    expect(resolveVendorCategories(txns, {}, prior).get('acme widgets')).toBe('Software & Services')
+  })
+
+  it('never lets the community prior override a local user fix', () => {
+    const txns = [t('ACME WIDGETS')]
+    const prior: CommunityPrior = new Map([['acme widgets', { category: 'Software & Services', confidence: 0.9 }]])
+    expect(resolveVendorCategories(txns, { 'acme widgets': 'Equipment' }, prior).get('acme widgets')).toBe('Equipment')
   })
 })
 

@@ -13,6 +13,7 @@ import { prisma } from '@/lib/prisma'
 import { withOrg } from '@/lib/api/with-org'
 import { parseBody } from '@/lib/validate'
 import { USER_CATEGORIES, vendorKey, VENDOR_OVERRIDE_PREFIX } from '@/lib/metrics/classify'
+import { recordVendorVote } from '@/lib/metrics/community'
 import * as cache from '@/lib/cache'
 
 const PatchSchema = z
@@ -59,11 +60,16 @@ export const PATCH = withOrg(async (request, { orgId }) => {
       // Apply to the whole vendor, and clear this row's own pin so it follows.
       await clearCategoryRow(orgId, externalId)
       if (category === null) await clearCategoryRow(orgId, vendorRowKey)
-      else await prisma.txnClassification.upsert({
-        where: { orgId_externalId: { orgId, externalId: vendorRowKey } },
-        create: { orgId, externalId: vendorRowKey, category },
-        update: { category },
-      })
+      else {
+        await prisma.txnClassification.upsert({
+          where: { orgId_externalId: { orgId, externalId: vendorRowKey } },
+          create: { orgId, externalId: vendorRowKey, category },
+          update: { category },
+        })
+        // Teach the cross-org community map (anonymized vendorKey → category).
+        // Fire-and-forget so a stats write never blocks the user's fix.
+        void recordVendorVote(vendorKey(txn), category)
+      }
     } else {
       // Pin just this transaction (wins over the vendor default).
       if (category === null) await clearCategoryRow(orgId, externalId)

@@ -28,6 +28,9 @@ export interface LedgerTxn {
   merchantName?: string | null
 }
 
+/** Where a classification came from — drives the confidence score and audit. */
+export type ClassificationSource = 'user' | 'community' | 'merchant' | 'plaid' | 'recurrence' | 'rule' | 'fallback'
+
 export interface Classification {
   bucket: Bucket
   /** Set when bucket === 'TRANSFER'. */
@@ -36,6 +39,13 @@ export interface Classification {
   expenseCategory?: string
   /** True when the row is excluded from P&L (transfer/payout/capital). */
   excludedFromPnl: boolean
+  /** 0..1 — how sure we are of the category. Overrides are 1; the 'Other'
+   *  fallback is low. Used for the needs-review queue and the UI. */
+  confidence: number
+  /** Which layer resolved this row. */
+  source: ClassificationSource
+  /** True when an expense couldn't be confidently categorized (→ review queue). */
+  needsReview?: boolean
 }
 
 // Plaid personal_finance_category.primary values that are NOT P&L events.
@@ -113,25 +123,6 @@ export function expenseLabel(category?: string | null): string {
   return EXPENSE_LABELS[category.toUpperCase()] ?? 'Other'
 }
 
-// Keyword fallback: when Plaid gives no PFC (legacy `category`, or none at all),
-// infer the category from the merchant/description so spend lands somewhere
-// meaningful instead of piling into 'Other'. First match wins; specific → generic.
-// Every label here is a member of USER_CATEGORIES so reclassify/COGS stay in sync.
-const KEYWORD_RULES: [RegExp, string][] = [
-  [/\b(gusto|adp|paychex|rippling|deel|justworks|payroll|upwork|fiverr|contractor)\b/i, 'Payroll & Contractors'],
-  [/\b(google ads|adwords|meta ads|facebook ads|fb ads|linkedin ads|tiktok ads|mailchimp|klaviyo|advertis|marketing)\b/i, 'Advertising & Marketing'],
-  [/\b(aws|amazon web services|gcp|google cloud|azure|vercel|netlify|heroku|digital ?ocean|cloudflare|github|gitlab|atlassian|jira|slack|zoom|notion|figma|adobe|openai|anthropic|twilio|sendgrid|datadog|sentry|stripe|quickbooks|intuit|salesforce|hubspot|zendesk|godaddy|namecheap|software|subscription)\b/i, 'Software & Services'],
-  [/\b(insurance|geico|allstate|state farm|progressive|nationwide|the hartford)\b/i, 'Insurance'],
-  [/\b(legal|attorney|law firm|accounting|accountant|\bcpa\b|consult|bookkeep|notary)\b/i, 'Professional Fees'],
-  [/\b(airlines?|united air|delta air|american air|southwest|jetblue|hotel|marriott|hilton|hyatt|airbnb|expedia|booking\.com|lodging|\bflight\b)\b/i, 'Travel'],
-  [/\b(uber|lyft|taxi|shell|chevron|exxon|mobil|gas station|fuel|parking|transit|metro|caltrain|amtrak|\btoll\b)\b/i, 'Transportation'],
-  [/\b(starbucks|mcdonald|chipotle|\bkfc\b|subway|doordash|grubhub|uber ?eats|restaurant|coffee|cafe|brewery|pizza|dunkin|panera|grocery|safeway|whole foods|trader joe)\b/i, 'Meals & Entertainment'],
-  [/\b(rent|wework|\blease\b|comcast|xfinity|verizon|at&t|t-mobile|pg&e|electric|water utility|internet|utility|landlord)\b/i, 'Rent & Utilities'],
-  [/\b(bank fee|service charge|overdraft|atm fee|wire fee|finance charge|\bnsf\b)\b/i, 'Bank Fees'],
-  [/\b(apple store|best buy|\bdell\b|lenovo|staples|office depot|equipment|hardware)\b/i, 'Equipment'],
-  [/\b(amazon|walmart|target|costco|ebay|etsy)\b/i, 'Merchandise'],
-]
-
 // Bank descriptors often jam tokens together with no space ("CreditGUSTO PAY",
 // "POS DEBIT…"). Split camelCase and letter↔digit runs so word-boundary rules
 // still match the embedded merchant.
@@ -142,57 +133,99 @@ function splitJammedTokens(text: string): string {
     .replace(/(\d)([A-Za-z])/g, '$1 $2')
 }
 
-function keywordCategory(text: string): string | null {
+/**
+ * Merchant registry — ONE data-driven table instead of scattered keyword lists
+ * and special-case guards. Each rule maps a descriptor pattern to a category:
+ *   beatsTransfer — a DEBIT here is a real P&L expense even when Plaid filed the
+ *                   ACH as a TRANSFER (payroll is the classic case). Checked
+ *                   before the transfer rule.
+ *   brand         — a recognizable brand/processor (high confidence) vs. a
+ *                   generic word like "software"/"rent" (lower confidence).
+ * First match wins; specific → generic. Every category is in USER_CATEGORIES so
+ * reclassify/COGS stay in sync. New merchants are added here (data), not in code
+ * branches — and the community map (below) extends this automatically over time.
+ */
+interface MerchantRule { match: RegExp; category: string; beatsTransfer?: boolean; brand?: boolean }
+
+const MERCHANT_RULES: MerchantRule[] = [
+  // Payroll processors — always a P&L expense, even if Plaid says transfer.
+  { match: /\b(gusto|adp|paychex|rippling|deel|justworks|trinet|zenefits|bamboo\s?hr|wave\s?payroll)\b/i, category: 'Payroll & Contractors', beatsTransfer: true, brand: true },
+  { match: /\b(upwork|fiverr|contractor|payroll)\b/i, category: 'Payroll & Contractors' },
+  // Advertising / marketing
+  { match: /\b(google ads|adwords|meta ads|facebook ads|fb ads|linkedin ads|tiktok ads|mailchimp|klaviyo)\b/i, category: 'Advertising & Marketing', brand: true },
+  { match: /\b(advertis|marketing)\b/i, category: 'Advertising & Marketing' },
+  // Software & services
+  { match: /\b(aws|amazon web services|gcp|google cloud|azure|vercel|netlify|heroku|digital ?ocean|cloudflare|github|gitlab|atlassian|jira|slack|zoom|notion|figma|adobe|openai|anthropic|twilio|sendgrid|datadog|sentry|stripe|quickbooks|intuit|salesforce|hubspot|zendesk|godaddy|namecheap)\b/i, category: 'Software & Services', brand: true },
+  { match: /\b(software|subscription|saas)\b/i, category: 'Software & Services' },
+  // Insurance
+  { match: /\b(geico|allstate|state farm|progressive|nationwide|the hartford)\b/i, category: 'Insurance', brand: true },
+  { match: /\binsurance\b/i, category: 'Insurance' },
+  // Professional fees
+  { match: /\b(legal|attorney|law firm|accounting|accountant|\bcpa\b|consult|bookkeep|notary)\b/i, category: 'Professional Fees' },
+  // Travel
+  { match: /\b(airlines?|united air|delta air|american air|southwest|jetblue|hotel|marriott|hilton|hyatt|airbnb|expedia|booking\.com|lodging|\bflight\b)\b/i, category: 'Travel', brand: true },
+  // Transportation
+  { match: /\b(uber|lyft|taxi|shell|chevron|exxon|mobil|gas station|fuel|parking|transit|metro|caltrain|amtrak|\btoll\b)\b/i, category: 'Transportation', brand: true },
+  // Meals & entertainment
+  { match: /\b(starbucks|mcdonald|chipotle|\bkfc\b|subway|doordash|grubhub|uber ?eats|dunkin|panera|safeway|whole foods|trader joe)\b/i, category: 'Meals & Entertainment', brand: true },
+  { match: /\b(restaurant|coffee|cafe|brewery|pizza|grocery)\b/i, category: 'Meals & Entertainment' },
+  // Rent & utilities
+  { match: /\b(wework|comcast|xfinity|verizon|at&t|t-mobile|pg&e)\b/i, category: 'Rent & Utilities', brand: true },
+  { match: /\b(rent|\blease\b|electric|water utility|internet|utility|landlord)\b/i, category: 'Rent & Utilities' },
+  // Bank fees
+  { match: /\b(bank fee|service charge|overdraft|atm fee|wire fee|finance charge|\bnsf\b)\b/i, category: 'Bank Fees' },
+  // Equipment
+  { match: /\b(apple store|best buy|\bdell\b|lenovo|staples|office depot)\b/i, category: 'Equipment', brand: true },
+  { match: /\b(equipment|hardware)\b/i, category: 'Equipment' },
+  // Merchandise
+  { match: /\b(amazon|walmart|target|costco|ebay|etsy)\b/i, category: 'Merchandise', brand: true },
+]
+
+function matchMerchant(text: string): MerchantRule | null {
   const normalized = splitJammedTokens(text)
-  for (const [re, cat] of KEYWORD_RULES) if (re.test(normalized)) return cat
+  for (const r of MERCHANT_RULES) if (r.match.test(normalized)) return r
   return null
 }
 
-// Dedicated payroll processors. A debit to one of these is unambiguously a
-// payroll EXPENSE — even when Plaid files the ACH as a TRANSFER (which it often
-// does, e.g. "ACH Electronic Credit … GUSTO PAY"). We check this BEFORE the
-// transfer rule so payroll is always counted in the P&L and every row for the
-// same processor lands in one category. Scoped to DEBIT (money out) so a payroll
-// refund or reversal coming back in isn't miscaught.
-const PAYROLL_PROCESSOR_RE = /\b(gusto|adp|paychex|rippling|deel|justworks|trinet|zenefits|bamboo\s?hr|wave\s?payroll|payroll)\b/i
-
-function isPayroll(t: LedgerTxn): boolean {
-  if (t.type !== 'DEBIT') return false
-  const text = splitJammedTokens(`${t.description ?? ''} ${t.merchantName ?? ''}`)
-  return PAYROLL_PROCESSOR_RE.test(text)
+// A DEBIT to a known expense-vendor (e.g. payroll) is a real P&L expense even
+// when Plaid filed the ACH as a TRANSFER. Generalizes the old payroll guard:
+// any registry rule flagged beatsTransfer wins over the transfer tag.
+function expenseVendorOverride(t: LedgerTxn): MerchantRule | null {
+  if (t.type !== 'DEBIT') return null
+  const r = matchMerchant(`${t.description ?? ''} ${t.merchantName ?? ''}`)
+  return r?.beatsTransfer ? r : null
 }
 
 /**
- * Classify a single ledger row. Order matters: payouts and transfers are checked
- * before income/expense so already-counted money never inflates the P&L.
+ * Classify a single ledger row, with a confidence score and provenance.
+ * Precedence matters: known expense-vendors and payouts/transfers are resolved
+ * before generic income/expense so already-counted money never inflates the P&L.
  */
 export function classify(t: LedgerTxn): Classification {
-  // 0) Known payroll processor paying out → always a payroll EXPENSE, even if
-  //    Plaid tagged the ACH as a transfer. Must run before the transfer rule so
-  //    payroll is counted in the P&L and stays consistent across every row.
-  if (isPayroll(t)) return { bucket: 'EXPENSE', expenseCategory: 'Payroll & Contractors', excludedFromPnl: false }
+  // 0) Known expense-vendor (payroll, etc.) paying out → real P&L expense even
+  //    if Plaid tagged the ACH as a transfer. Runs before the transfer rule.
+  const ev = expenseVendorOverride(t)
+  if (ev) return { bucket: 'EXPENSE', expenseCategory: ev.category, excludedFromPnl: false, confidence: 0.9, source: 'merchant' }
 
-  // 1) Stripe payout landing in the bank → already counted as Stripe revenue
-  //    (excluded from P&L, but it IS real cash arriving — see transferKind).
-  if (isStripePayout(t)) return { bucket: 'TRANSFER', transferKind: 'STRIPE_PAYOUT', excludedFromPnl: true }
+  // 1) Stripe payout landing in the bank → already counted as Stripe revenue.
+  if (isStripePayout(t)) return { bucket: 'TRANSFER', transferKind: 'STRIPE_PAYOUT', excludedFromPnl: true, confidence: 0.95, source: 'rule' }
 
   // 2) Internal transfers (own accounts) → not cash in/out, not P&L.
-  if (isTransfer(t)) return { bucket: 'TRANSFER', transferKind: 'INTERNAL', excludedFromPnl: true }
+  if (isTransfer(t)) return { bucket: 'TRANSFER', transferKind: 'INTERNAL', excludedFromPnl: true, confidence: 0.9, source: 'plaid' }
 
   // 3) Loan principal / capital movements → real cash out, but not a P&L expense.
-  if (isCapital(t)) return { bucket: 'TRANSFER', transferKind: 'CAPITAL', excludedFromPnl: true }
+  if (isCapital(t)) return { bucket: 'TRANSFER', transferKind: 'CAPITAL', excludedFromPnl: true, confidence: 0.85, source: 'rule' }
 
-  // 4) Stripe charges and other money-in → revenue.
-  if (t.type === 'CREDIT') return { bucket: 'REVENUE', excludedFromPnl: false }
+  // 4) Money-in → revenue.
+  if (t.type === 'CREDIT') return { bucket: 'REVENUE', excludedFromPnl: false, confidence: 0.8, source: 'rule' }
 
-  // 5) Everything else going out → an operating expense. Use Plaid's PFC label
-  //    when present; otherwise infer from the merchant/description so it doesn't
-  //    fall into 'Other'.
-  const label = expenseLabel(t.category)
-  const expenseCategory = label !== 'Other'
-    ? label
-    : (keywordCategory(`${t.description ?? ''} ${t.merchantName ?? ''}`) ?? 'Other')
-  return { bucket: 'EXPENSE', expenseCategory, excludedFromPnl: false }
+  // 5) Money-out → expense. Plaid PFC label → merchant registry → 'Other'.
+  //    Confidence reflects which layer named it; 'Other' goes to the review queue.
+  const pfc = expenseLabel(t.category)
+  if (pfc !== 'Other') return { bucket: 'EXPENSE', expenseCategory: pfc, excludedFromPnl: false, confidence: 0.8, source: 'plaid' }
+  const m = matchMerchant(`${t.description ?? ''} ${t.merchantName ?? ''}`)
+  if (m) return { bucket: 'EXPENSE', expenseCategory: m.category, excludedFromPnl: false, confidence: m.brand ? 0.85 : 0.6, source: 'merchant' }
+  return { bucket: 'EXPENSE', expenseCategory: 'Other', excludedFromPnl: false, confidence: 0.25, source: 'fallback', needsReview: true }
 }
 
 /**
@@ -212,18 +245,25 @@ export function vendorKey(t: { merchantName?: string | null; description?: strin
     .toLowerCase()
 }
 
+/** A community prior: vendorKey → the category other orgs have agreed on, with a
+ *  confidence in 0..1 (share of votes). Used to fill vendors this org hasn't
+ *  fixed and the heuristics couldn't name. Never overrides a user's own fix. */
+export type CommunityPrior = Map<string, { category: string; confidence: number }>
+
 /**
  * Resolve ONE expense category per vendor across a set of transactions, so a
  * vendor never appears under two categories. Precedence per vendor:
  *   1. user override (vendorKey → label), applied to all the vendor's txns;
  *   2. else the most common non-'Other' auto label among the vendor's txns;
- *   3. else 'Other'.
+ *   3. else the community prior (what other orgs agreed this vendor is);
+ *   4. else 'Other'.
  * Returns a vendorKey → category map. Callers label each expense row by its
  * vendorKey, guaranteeing consistency everywhere the map is used.
  */
 export function resolveVendorCategories(
   txns: LedgerTxn[],
   overridesByVendor: Record<string, string> = {},
+  community: CommunityPrior = new Map(),
 ): Map<string, string> {
   const votes = new Map<string, Map<string, number>>()
   for (const t of txns) {
@@ -244,6 +284,11 @@ export function resolveVendorCategories(
     for (const [label, n] of counts) {
       if (label === 'Other') continue
       if (n > bestN) { best = label; bestN = n }
+    }
+    // Heuristics couldn't name it → fall back to what the community agreed on.
+    if (best === 'Other') {
+      const prior = community.get(vk)
+      if (prior && prior.category !== 'Other') best = prior.category
     }
     out.set(vk, best)
   }
@@ -285,4 +330,56 @@ export function resolveTxnCategory(
   }
   // No vendor identity (no merchant/description) → this transaction's own label.
   return classify(t).expenseCategory ?? 'Other'
+}
+
+/** Final category plus confidence + provenance, for the review queue and UI. */
+export interface ResolvedCategory {
+  category: string
+  confidence: number
+  source: ClassificationSource
+  /** Expense that resolved to 'Other' and isn't user-fixed → wants a human. */
+  needsReview: boolean
+}
+
+/**
+ * Like resolveTxnCategory, but also reports confidence + where the label came
+ * from. Confidence ladder: user fix (1.0) > per-org vendor default > community
+ * prior > the row's own auto classification. An expense still sitting at 'Other'
+ * is the review-queue signal.
+ */
+export function resolveTxnCategoryDetailed(
+  t: LedgerTxn & { externalId?: string | null },
+  vendorResolved: Map<string, string>,
+  txnOverrides: Record<string, string> = {},
+  ctx: { overrideVendors?: Set<string>; community?: CommunityPrior } = {},
+): ResolvedCategory {
+  const base = classify(t)
+  // Non-expense rows aren't categorized (Revenue / Transfer) — never reviewed.
+  if (base.bucket !== 'EXPENSE') {
+    return { category: base.bucket === 'REVENUE' ? 'Revenue' : 'Transfer', confidence: base.confidence, source: base.source, needsReview: false }
+  }
+  // 1) explicit per-transaction fix
+  if (t.externalId && txnOverrides[t.externalId]) {
+    return { category: txnOverrides[t.externalId], confidence: 1, source: 'user', needsReview: false }
+  }
+  const vk = vendorKey(t)
+  // 2) per-org vendor default (a user vendor-override is also a confident fix)
+  const resolved = vk ? vendorResolved.get(vk) : undefined
+  if (resolved && resolved !== 'Other') {
+    const userFixed = !!(vk && ctx.overrideVendors?.has(vk))
+    return {
+      category: resolved,
+      confidence: userFixed ? 1 : Math.max(base.confidence, 0.7),
+      source: userFixed ? 'user' : base.source,
+      needsReview: false,
+    }
+  }
+  // 3) community prior (only when nothing local named it)
+  const prior = vk ? ctx.community?.get(vk) : undefined
+  if (prior && prior.category !== 'Other') {
+    return { category: prior.category, confidence: prior.confidence, source: 'community', needsReview: prior.confidence < 0.5 }
+  }
+  // 4) the row's own auto label (may be 'Other' → review)
+  const category = base.expenseCategory ?? 'Other'
+  return { category, confidence: base.confidence, source: base.source, needsReview: category === 'Other' }
 }
