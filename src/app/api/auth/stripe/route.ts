@@ -1,5 +1,5 @@
 import { requireAuth, getDefaultOrgId } from '@/lib/auth'
-import { getConnectAuthUrl } from '@/lib/integrations/stripe'
+import { getConnectAuthUrl, syncStripeData, captureMrrSnapshot } from '@/lib/integrations/stripe'
 import { prisma } from '@/lib/prisma'
 
 /** The public origin the user is actually on (handles Vercel/proxy forwarding),
@@ -46,6 +46,9 @@ export async function POST(request: Request) {
       create: { orgId, provider: 'STRIPE', status: 'CONNECTED', accessToken: apiKey, lastSyncedAt: new Date() },
       update: { status: 'CONNECTED', accessToken: apiKey, lastSyncedAt: new Date() },
     })
+    // Sync immediately so the dashboard is populated on connect (best-effort).
+    await syncStripeData(orgId).catch(() => {})
+    await captureMrrSnapshot(orgId).catch(() => {})
     return Response.json({ success: true })
   } catch (err) {
     if ((err as Error).message === 'UNAUTHORIZED') return Response.json({ error: 'Unauthorized' }, { status: 401 })
