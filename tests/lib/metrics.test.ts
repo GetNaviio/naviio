@@ -37,6 +37,20 @@ describe('classify', () => {
     expect(c.expenseCategory).toBe('Rent & Utilities')
   })
 
+  it('classifies a Gusto payroll debit as Payroll even when Plaid tags it a transfer', () => {
+    // Real-world quirk: Plaid files this ACH as TRANSFER_OUT with a jammed
+    // descriptor. Payroll is a P&L expense, not an internal transfer.
+    const c = classify({ source: 'plaid', type: 'DEBIT', amount: 6000, category: 'TRANSFER_OUT', description: 'ACH Electronic CreditGUSTO PAY 123456' })
+    expect(c.bucket).toBe('EXPENSE')
+    expect(c.expenseCategory).toBe('Payroll & Contractors')
+    expect(c.excludedFromPnl).toBe(false)
+  })
+
+  it('does not catch a payroll-provider refund coming back in (credit stays revenue path)', () => {
+    const c = classify({ source: 'plaid', type: 'CREDIT', amount: 200, category: 'TRANSFER_IN', description: 'GUSTO refund' })
+    expect(c.bucket).toBe('TRANSFER') // CREDIT → not promoted to payroll expense
+  })
+
   it('maps unknown categories to Other', () => {
     expect(expenseLabel('SOMETHING_NEW')).toBe('Other')
     expect(expenseLabel(null)).toBe('Other')

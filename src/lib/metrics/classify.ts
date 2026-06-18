@@ -132,16 +132,34 @@ const KEYWORD_RULES: [RegExp, string][] = [
   [/\b(amazon|walmart|target|costco|ebay|etsy)\b/i, 'Merchandise'],
 ]
 
-function keywordCategory(text: string): string | null {
-  // Bank descriptors often jam tokens together with no space ("CreditGUSTO PAY",
-  // "POS DEBIT…"). Split camelCase and letter↔digit runs so the word-boundary
-  // rules still match the embedded merchant.
-  const normalized = text
+// Bank descriptors often jam tokens together with no space ("CreditGUSTO PAY",
+// "POS DEBIT…"). Split camelCase and letter↔digit runs so word-boundary rules
+// still match the embedded merchant.
+function splitJammedTokens(text: string): string {
+  return text
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/([A-Za-z])(\d)/g, '$1 $2')
     .replace(/(\d)([A-Za-z])/g, '$1 $2')
+}
+
+function keywordCategory(text: string): string | null {
+  const normalized = splitJammedTokens(text)
   for (const [re, cat] of KEYWORD_RULES) if (re.test(normalized)) return cat
   return null
+}
+
+// Dedicated payroll processors. A debit to one of these is unambiguously a
+// payroll EXPENSE — even when Plaid files the ACH as a TRANSFER (which it often
+// does, e.g. "ACH Electronic Credit … GUSTO PAY"). We check this BEFORE the
+// transfer rule so payroll is always counted in the P&L and every row for the
+// same processor lands in one category. Scoped to DEBIT (money out) so a payroll
+// refund or reversal coming back in isn't miscaught.
+const PAYROLL_PROCESSOR_RE = /\b(gusto|adp|paychex|rippling|deel|justworks|trinet|zenefits|bamboo\s?hr|wave\s?payroll|payroll)\b/i
+
+function isPayroll(t: LedgerTxn): boolean {
+  if (t.type !== 'DEBIT') return false
+  const text = splitJammedTokens(`${t.description ?? ''} ${t.merchantName ?? ''}`)
+  return PAYROLL_PROCESSOR_RE.test(text)
 }
 
 /**
@@ -149,6 +167,11 @@ function keywordCategory(text: string): string | null {
  * before income/expense so already-counted money never inflates the P&L.
  */
 export function classify(t: LedgerTxn): Classification {
+  // 0) Known payroll processor paying out → always a payroll EXPENSE, even if
+  //    Plaid tagged the ACH as a transfer. Must run before the transfer rule so
+  //    payroll is counted in the P&L and stays consistent across every row.
+  if (isPayroll(t)) return { bucket: 'EXPENSE', expenseCategory: 'Payroll & Contractors', excludedFromPnl: false }
+
   // 1) Stripe payout landing in the bank → already counted as Stripe revenue
   //    (excluded from P&L, but it IS real cash arriving — see transferKind).
   if (isStripePayout(t)) return { bucket: 'TRANSFER', transferKind: 'STRIPE_PAYOUT', excludedFromPnl: true }
