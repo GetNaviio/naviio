@@ -177,6 +177,35 @@ export default function PLPage() {
     { label: 'Net Income', cur: scope.net, mom: scope.mom?.net ?? null, yoy: scope.yoy?.net ?? null, inverse: false },
   ]
 
+  // ── Year-to-date vs the SAME span last year — always available, independent of
+  // the month drill-down, so the YoY growth read is one glance regardless of what
+  // month is pinned. Current YTD comes from the metrics income statement (already
+  // Jan→now); prior YTD sums last year's matching months.
+  const ytd = useMemo(() => {
+    const year = currentYm.slice(0, 4)
+    const ytdMonths = months24.filter((r) => r.month.slice(0, 4) === year && r.month <= currentYm)
+    const lyMonths = ytdMonths
+      .map((r) => byYm.get(lastYearYm(r.month)))
+      .filter((r): r is MonthRow => r != null)
+    const sum = (rows: { income: number; expenses: number; net: number }[]) => ({
+      income: rows.reduce((s, r) => s + r.income, 0),
+      expenses: rows.reduce((s, r) => s + r.expenses, 0),
+      net: rows.reduce((s, r) => s + r.net, 0),
+    })
+    const cur = { income: is?.totalIncome ?? 0, expenses: is?.totalExpenses ?? 0, net: is?.netIncome ?? 0, margin: is?.netMargin ?? null }
+    const prior = lyMonths.length > 0 ? sum(lyMonths) : null
+    const priorMargin = prior && prior.income > 0 ? (prior.net / prior.income) * 100 : null
+    const spanLabel = ytdMonths.length ? `${monthLabel(ytdMonths[0].month)}–${monthLabel(currentYm)}` : monthLabel(currentYm)
+    const priorSpanLabel = lyMonths.length ? `${monthLabel(lyMonths[0].month)}–${monthLabel(lyMonths[lyMonths.length - 1].month)}` : null
+    return { cur, prior, priorMargin, spanLabel, priorSpanLabel, hasPrior: !!prior }
+  }, [months24, byYm, currentYm, is])
+
+  const ytdRows = [
+    { label: 'Income', cur: ytd.cur.income, prior: ytd.prior?.income ?? null, inverse: false },
+    { label: 'Expenses', cur: ytd.cur.expenses, prior: ytd.prior?.expenses ?? null, inverse: true },
+    { label: 'Net Income', cur: ytd.cur.net, prior: ytd.prior?.net ?? null, inverse: false },
+  ]
+
   const hasAccrual = !!accrual && (accrual.totalIncome != null || accrual.netIncome != null)
   const accrualSource = accrual?.source === 'xero' ? 'Xero' : 'QuickBooks'
   const accrualRows: { label: string; value: number | null; color: string; bold?: boolean }[] = accrual
@@ -264,11 +293,12 @@ export default function PLPage() {
               </p>
             )}
 
-            {/* P&L comparison — the statement read the way a CFO reads it */}
-            {!scope.isPartial && (scope.yoy || scope.mom) && (
+            {/* P&L comparison — the statement read the way a CFO reads it.
+                Month scope only; YTD has its own always-on card below. */}
+            {scope.kind === 'month' && !scope.isPartial && (scope.yoy || scope.mom) && (
               <Card
                 title={`P&L Comparison — ${scope.label}`}
-                subtitle={scope.kind === 'month' ? 'Against the prior month (momentum) and the same month last year (growth)' : `Against the same span last year${scope.yoyLabel ? ` (${scope.yoyLabel})` : ''}`}
+                subtitle="Against the prior month (momentum) and the same month last year (growth)"
                 tooltip="Same-month-last-year strips out seasonality — it's the honest growth signal. Prior-month shows momentum. Favorable moves are green: income and net up, expenses down."
                 padding={false}
               >
@@ -277,10 +307,10 @@ export default function PLPage() {
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--color-surface-border)' }}>
                         <th className="px-4 py-3 text-left font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>Line</th>
-                        <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>{scope.kind === 'month' ? monthLabel(sel!) : 'This YTD'}</th>
+                        <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>{monthLabel(sel!)}</th>
                         {scope.mom && <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>{scope.momLabel}</th>}
                         {scope.mom && <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>MoM</th>}
-                        {scope.yoy && <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>{scope.kind === 'month' ? scope.yoyLabel : 'Prior YTD'}</th>}
+                        {scope.yoy && <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>{scope.yoyLabel}</th>}
                         {scope.yoy && <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>Δ $</th>}
                         {scope.yoy && <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>YoY</th>}
                       </tr>
@@ -317,6 +347,56 @@ export default function PLPage() {
                 </div>
               </Card>
             )}
+
+            {/* Year-to-Date vs Last Year — always shown, regardless of the month drill-down */}
+            <Card
+              title="Year-to-Date vs Last Year"
+              subtitle={ytd.hasPrior ? `${ytd.spanLabel} this year vs ${ytd.priorSpanLabel} last year` : `${ytd.spanLabel} this year`}
+              tooltip="Cumulative income, expenses, and net for the year so far, compared against the exact same span of last year — the seasonality-free growth read. Favorable moves are green: income and net up, expenses down."
+              padding={false}
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--color-surface-border)' }}>
+                      <th className="px-4 py-3 text-left font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>Line</th>
+                      <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>This YTD</th>
+                      {ytd.hasPrior && <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>Prior YTD</th>}
+                      {ytd.hasPrior && <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>Δ $</th>}
+                      {ytd.hasPrior && <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>YoY</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ytdRows.map(({ label, cur, prior, inverse }) => {
+                      const yoyPct = pctChange(cur, prior)
+                      const bold = label === 'Net Income'
+                      return (
+                        <tr key={label} style={{ borderBottom: '1px solid var(--color-surface-border)' }}>
+                          <td className={`px-4 py-3 ${bold ? 'font-semibold text-white' : ''}`} style={{ color: bold ? undefined : 'var(--color-text-secondary)' }}>{label}</td>
+                          <td className={`px-4 py-3 text-right ${bold ? 'font-bold text-white' : 'font-medium text-white'}`}>{fmtMoney(cur)}</td>
+                          {ytd.hasPrior && <td className="px-4 py-3 text-right" style={{ color: 'var(--color-text-secondary)' }}>{prior == null ? '—' : fmtMoney(prior)}</td>}
+                          {ytd.hasPrior && <td className="px-4 py-3 text-right" style={{ color: deltaColor(prior == null ? null : cur - prior, inverse) }}>{fmtDeltaMoney(prior == null ? null : cur - prior)}</td>}
+                          {ytd.hasPrior && <td className="px-4 py-3 text-right font-medium" style={{ color: deltaColor(yoyPct, inverse) }}>{fmtPct(yoyPct)}</td>}
+                        </tr>
+                      )
+                    })}
+                    {/* Margin row — percentage points, never percent-of-percent */}
+                    <tr>
+                      <td className="px-4 py-3" style={{ color: 'var(--color-text-secondary)' }}>Net Margin</td>
+                      <td className="px-4 py-3 text-right font-medium" style={{ color: '#14B8A6' }}>{ytd.cur.margin != null ? `${ytd.cur.margin.toFixed(1)}%` : '—'}</td>
+                      {ytd.hasPrior && <td className="px-4 py-3 text-right" style={{ color: 'var(--color-text-secondary)' }}>{ytd.priorMargin != null ? `${ytd.priorMargin.toFixed(1)}%` : '—'}</td>}
+                      {ytd.hasPrior && <td className="px-4 py-3 text-right" style={{ color: 'var(--color-text-muted)' }}>—</td>}
+                      {ytd.hasPrior && <td className="px-4 py-3 text-right font-medium" style={{ color: deltaColor(ytd.cur.margin != null && ytd.priorMargin != null ? ytd.cur.margin - ytd.priorMargin : null) }}>{fmtPp(ytd.cur.margin != null && ytd.priorMargin != null ? ytd.cur.margin - ytd.priorMargin : null)}</td>}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              {!ytd.hasPrior && (
+                <p className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  No prior-year baseline yet — the year-over-year comparison populates automatically once you have last-year data for these months.
+                </p>
+              )}
+            </Card>
 
             {chart.length > 0 && (
               <Card title="Income vs Expenses" subtitle="By month, year-to-date" tooltip="Monthly income and expenses with the net line, computed from your transaction ledger.">
