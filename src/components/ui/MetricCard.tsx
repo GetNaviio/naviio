@@ -75,7 +75,7 @@ export default function MetricCard({
             <div className="group relative flex-shrink-0">
               <HelpCircle size={13} className="cursor-help" style={{ color: 'var(--color-text-muted)' }} />
               <div
-                className="pointer-events-none absolute top-full left-1/2 z-50 w-56 -translate-x-1/2 mt-2 rounded-lg px-3 py-2 text-xs leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                className="pointer-events-none absolute top-full left-0 z-50 w-56 mt-2 rounded-lg px-3 py-2 text-xs leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                 style={{
                   backgroundColor: 'var(--color-surface-input)',
                   border: '1px solid var(--color-surface-border)',
@@ -84,7 +84,7 @@ export default function MetricCard({
                 }}
               >
                 <span
-                  className="absolute bottom-full left-1/2 -translate-x-1/2 block w-0 h-0"
+                  className="absolute bottom-full left-2 block w-0 h-0"
                   style={{
                     borderLeft: '5px solid transparent',
                     borderRight: '5px solid transparent',
