@@ -62,10 +62,14 @@ The "full operator" remit lands behind a confirmation contract:
   route → agent → tool; the model never supplies it.
 - **`create_scenario` action tool** — saves a custom forecast scenario
   (growth/churn/opex multipliers, clamped 0–10) behind the same confirm contract.
+- **`export_board_pack` action tool** — generates a print-ready HTML financial
+  pack (`lib/navi/board-pack.ts`, served at `/api/navi/board-pack`); on confirm
+  the chat opens it in a new tab to save as PDF. No PDF dependency — the browser
+  does Print → Save as PDF.
 
-## Still open
-- **`export_board_pack`** — needs a server-side document-generation pipeline
-  (PDF/board deck) that doesn't exist yet; deferred until that's built.
+## Action set (all behind the confirm contract)
+`trigger_sync` · `reclassify_transaction` · `create_scenario` · `export_board_pack`.
+Money movement and account/permission/settings changes remain out of scope (no tools).
 
 ## Alternatives considered
 - *Keep the static-snapshot chat.* Rejected: it can only answer what's pre-baked
