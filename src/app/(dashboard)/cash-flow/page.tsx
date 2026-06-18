@@ -5,6 +5,7 @@ import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import MetricCard from '@/components/ui/MetricCard'
 import MobileHero from '@/components/dashboard/MobileHero'
+import LedgerList from '@/components/transactions/LedgerList'
 import dynamic from 'next/dynamic'
 import ChartSkeleton from '@/components/charts/ChartSkeleton'
 // Lazy-loaded — pulls in recharts; kept out of the initial bundle.
@@ -211,6 +212,15 @@ export default function CashFlowPage() {
                 </div>
               </Card>
             )}
+
+            {/* Transfers ledger — account-to-account movement lives here, off the P&L. */}
+            <LedgerList
+              title="Transfers"
+              subtitle="Account-to-account movement and Stripe payouts — excluded from your P&L"
+              category="Transfer"
+              tooltip="Internal transfers, loan principal, and Stripe payouts. These move cash but are not income or expense, so they're excluded from the P&L (they belong here, not on the Expenses tab)."
+              emptyText="No transfers detected."
+            />
 
             <p className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
               <InfoTip text="All figures are computed from your live bank transactions, deduplicated against Stripe payouts." />

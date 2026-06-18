@@ -154,9 +154,12 @@ export default function ExpensesPage() {
     }))
   }, [scope.categories])
 
+  // The Expenses tab shows EXPENSE rows only — revenue lives on the Revenue tab,
+  // transfers on Cash Flow (keeps the label matching the contents; no double-count).
+  const expenseTxns = useMemo(() => txns.filter((t) => t.editable), [txns])
   const allCategories = useMemo(
-    () => Array.from(new Set(txns.map((t) => t.category).filter(Boolean))),
-    [txns],
+    () => Array.from(new Set(expenseTxns.map((t) => t.category).filter(Boolean))),
+    [expenseTxns],
   )
 
   function handleCategoryClick(category: string) {
@@ -167,9 +170,9 @@ export default function ExpensesPage() {
 
   // Recurring + larger items first within the review queue so the costly,
   // committed outflows (payroll/rent/SaaS) surface at the top.
-  const reviewCount = useMemo(() => txns.filter((t) => t.needsReview).length, [txns])
+  const reviewCount = useMemo(() => expenseTxns.filter((t) => t.needsReview).length, [expenseTxns])
   const filteredTx = useMemo(() => {
-    let list = activeCategory ? txns.filter((t) => t.category === activeCategory) : txns
+    let list = activeCategory ? expenseTxns.filter((t) => t.category === activeCategory) : expenseTxns
     if (reviewOnly) {
       list = list
         .filter((t) => t.needsReview)
@@ -177,7 +180,7 @@ export default function ExpensesPage() {
         .sort((a, b) => Number(b.recurring) - Number(a.recurring) || Math.abs(b.amount) - Math.abs(a.amount))
     }
     return list
-  }, [txns, activeCategory, reviewOnly])
+  }, [expenseTxns, activeCategory, reviewOnly])
 
   // Reclassify (or reset) a transaction's category — the fix-the-AI write path.
   // applyToVendor=true re-categorizes every transaction from this vendor (the
@@ -368,11 +371,11 @@ export default function ExpensesPage() {
 
             <div ref={tableRef}>
               <Card
-                title="Transactions"
+                title="Expense Transactions"
                 subtitle={
                   txLoading
                     ? 'Loading…'
-                    : `${filteredTx.length}${activeCategory ? ` in "${activeCategory}"` : ''} · ${scope.kind === 'month' ? scope.label : `${txns.length} most recent`}`
+                    : `${filteredTx.length}${activeCategory ? ` in "${activeCategory}"` : ''} · ${scope.kind === 'month' ? scope.label : `${expenseTxns.length} most recent`} · revenue is on the Revenue tab`
                 }
                 padding={false}
                 action={

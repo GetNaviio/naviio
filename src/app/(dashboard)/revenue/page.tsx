@@ -5,6 +5,7 @@ import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import MetricCard from '@/components/ui/MetricCard'
 import MobileHero from '@/components/dashboard/MobileHero'
+import LedgerList from '@/components/transactions/LedgerList'
 import ConnectPrompt from '@/components/ConnectPrompt'
 import type { StripeMetrics } from '@/lib/integrations/stripe'
 import { formatCurrency } from '@/lib/utils'
@@ -147,6 +148,14 @@ export default function RevenuePage() {
                 </div>
               </Card>
             )}
+
+            {/* Raw revenue ledger — money-in rows live here, not on the Expenses tab. */}
+            <LedgerList
+              title="Revenue Transactions"
+              subtitle="Money in, from your bank and payments — cash basis"
+              category="Revenue"
+              tooltip="Individual money-in transactions classified as revenue, from your connected accounts. Deduplicated against Stripe payouts so bank deposits of Stripe payouts aren't double-counted."
+            />
           </>
         )}
       </div>
