@@ -88,6 +88,7 @@ export async function GET(request: Request) {
       return {
         id: r.id,
         externalId: r.externalId,
+        vendorKey: vendorKey(ledgerTxn), // for joining to peer benchmarks
         // Editable only for expenses; flag lets the UI mark user-fixed rows.
         editable: isExpense,
         overridden,

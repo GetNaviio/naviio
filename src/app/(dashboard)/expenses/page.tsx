@@ -109,6 +109,17 @@ export default function ExpensesPage() {
     return () => { alive = false }
   }, [sel, reloadKey])
 
+  // Peer benchmarks for recurring vendors (vendorKey → { peerMedian, ratio }).
+  const [benchmarks, setBenchmarks] = useState<Record<string, { peerMedian: number; ratio: number; orgs: number }>>({})
+  useEffect(() => {
+    let alive = true
+    fetch('/api/benchmarks')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setBenchmarks(d?.vendors ?? {}) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [reloadKey])
+
   const connected = !!(m?.sources?.plaid || m?.sources?.stripe)
   const byYm = useMemo(() => new Map(months24.map((r) => [r.month, r])), [months24])
   const currentYm = meta?.currentMonth ?? new Date().toISOString().slice(0, 7)
@@ -445,6 +456,23 @@ export default function ExpensesPage() {
                                 })()}
                               </p>
                               {tx.merchantName && <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{tx.merchantName}</p>}
+                              {/* Peer benchmark for recurring vendors (anonymized, ≥5 peers). */}
+                              {(() => {
+                                const b = tx.recurring && tx.vendorKey ? benchmarks[tx.vendorKey] : undefined
+                                if (!b) return null
+                                const high = b.ratio >= 1.15
+                                return (
+                                  <span
+                                    className="inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded"
+                                    style={high
+                                      ? { backgroundColor: 'rgba(245,158,11,0.15)', color: '#F59E0B' }
+                                      : { backgroundColor: 'var(--color-surface-card-hover)', color: 'var(--color-text-muted)' }}
+                                    title={`Similar businesses pay a median of ${formatCurrency(b.peerMedian, true)}/mo (anonymized, ${b.orgs}+ peers).`}
+                                  >
+                                    {high ? `${b.ratio}× peer median · they pay ~${formatCurrency(b.peerMedian, true)}/mo` : `≈ peer median (${formatCurrency(b.peerMedian, true)}/mo)`}
+                                  </span>
+                                )
+                              })()}
                             </td>
                             <td className="px-4 py-3">
                               {pendingReclass?.tx.id === tx.id ? (

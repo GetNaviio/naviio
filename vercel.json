@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/decision-followups",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/benchmarks",
+      "schedule": "0 5 * * *"
     }
   ]
 }

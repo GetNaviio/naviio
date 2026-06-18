@@ -19,6 +19,9 @@ import { getStripeMetrics } from '@/lib/integrations/stripe'
 import { getFinancialContext } from '@/lib/decisions/context'
 import { USER_CATEGORIES, vendorKey, VENDOR_OVERRIDE_PREFIX } from '@/lib/metrics/classify'
 import { recordVendorVote } from '@/lib/metrics/community'
+import { detectRecurring } from '@/lib/metrics/recurrence'
+import { revenueToSegment } from '@/lib/benchmarks/buckets'
+import { getVendorBenchmarks } from '@/lib/benchmarks/read'
 import { fetchAllData } from '@/lib/integrations'
 import * as cache from '@/lib/cache'
 import {
@@ -163,6 +166,39 @@ export const NAVI_TOOLS: NaviTool[] = [
       }
     },
   },
+  {
+    name: 'peer_benchmark',
+    label: 'Comparing to similar businesses',
+    description:
+      'Compare what the user pays a recurring vendor against similar-size businesses (anonymized peer median, only when there are enough comparable businesses). Use for "am I overpaying for X?" type questions.',
+    kind: 'read',
+    input_schema: {
+      type: 'object',
+      properties: { vendor: { type: 'string', description: 'Vendor/merchant name as the user refers to it.' } },
+      required: ['vendor'],
+    },
+    run: async (orgId, input) => {
+      const ledger = await loadPrimaryLedger(orgId, monthsAgoUTC(12))
+      const segment = revenueToSegment(incomeStatement(ledger).totalIncome)
+      const target = vendorKey({ merchantName: String(input.vendor ?? '') })
+      let yourMonthly: number | null = null
+      let vk = target
+      for (const [k, s] of detectRecurring(ledger)) {
+        if (!s.recurring) continue
+        if (k === target || (target && (k.includes(target) || target.includes(k)))) { vk = k; yourMonthly = s.avgAmount; break }
+      }
+      const bench = (await getVendorBenchmarks([vk], segment)).get(vk)
+      if (!bench) return { available: false, note: 'Not enough comparable businesses yet to benchmark this (need 5+).' }
+      return {
+        available: true,
+        yourMonthly: yourMonthly != null ? Math.round(yourMonthly) : null,
+        peerMedian: bench.median, peerP25: bench.p25, peerP75: bench.p75,
+        ratioVsPeers: yourMonthly && bench.median ? Math.round((yourMonthly / bench.median) * 100) / 100 : null,
+        peers: bench.orgs,
+      }
+    },
+  },
+
   // ─── Actions (NEVER auto-run; surfaced for the user to confirm) ──────────────
   {
     name: 'trigger_sync',

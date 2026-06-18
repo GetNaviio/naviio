@@ -529,6 +529,22 @@ model VendorCategoryStat {
   @@index([vendorKey])
 }
 
+// Peer-benchmark aggregates: how much businesses (by size band) spend per recurring
+// vendor, as a privacy-preserving HISTOGRAM — counts of distinct orgs per spend
+// bucket. NO amounts tied to any org, NO org identity. Rebuilt nightly. A benchmark
+// is only ever surfaced when a (vendorKey, segment) has >= 5 orgs total (k-anon).
+model VendorSpendStat {
+  id        String   @id @default(cuid())
+  vendorKey String   // normalized merchant identity
+  segment   String   // size band (e.g. "1m_5m")
+  bucket    Int      // half-octave monthly-$ bucket index (see lib/benchmarks/buckets)
+  orgs      Int      @default(0) // distinct orgs in this bucket
+  updatedAt DateTime @updatedAt
+
+  @@unique([vendorKey, segment, bucket])
+  @@index([segment, vendorKey])
+}
+
 // ─── Forecast scenarios ─────────────────────────────────────────────────────────
 
 // User-defined forecast scenarios (multipliers applied to the base projection).

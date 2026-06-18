@@ -88,6 +88,8 @@ export interface Transaction {
   needsReview?: boolean
   /** Part of a recurring stream (regular cadence + stable amount) */
   recurring?: boolean
+  /** Normalized merchant key — joins a row to its peer benchmark */
+  vendorKey?: string
 }
 
 export interface KPIMetric {
