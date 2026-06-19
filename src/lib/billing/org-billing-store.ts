@@ -68,3 +68,44 @@ export async function cancelOrgSubBySubId(subscriptionId: string): Promise<void>
     WHERE "stripeSubscriptionId" = ${subscriptionId}
   `)
 }
+
+// ── Multi-entity: a user's own entities = the orgs they OWN ──
+
+/** Number of entities (orgs) a user owns — drives the per-entity overage. */
+export async function countOwnedOrgs(userId: string): Promise<number> {
+  const rows = await prisma.$queryRaw<Array<{ n: bigint }>>(
+    Prisma.sql`SELECT COUNT(*)::bigint AS n FROM "Organization" WHERE "userId" = ${userId}`,
+  )
+  return Number(rows[0]?.n ?? 0)
+}
+
+/** The owner's billing-anchor org (the one carrying the plan subscription), if any. */
+export async function getOwnerBillingOrg(
+  userId: string,
+): Promise<{ orgId: string; plan: Plan; subscriptionId: string; customerId: string | null } | null> {
+  const rows = await prisma.$queryRaw<Array<{ orgId: string; plan: Plan; subscriptionId: string; customerId: string | null }>>(
+    Prisma.sql`
+      SELECT "id" AS "orgId", "plan"::text AS plan, "stripeSubscriptionId" AS "subscriptionId", "stripeCustomerId" AS "customerId"
+      FROM "Organization"
+      WHERE "userId" = ${userId} AND "stripeSubscriptionId" IS NOT NULL
+      ORDER BY "createdAt" ASC LIMIT 1
+    `,
+  )
+  return rows[0] ?? null
+}
+
+/** The owner's effective plan: their billing org's plan, else the highest owned. */
+export async function getOwnerPlan(userId: string): Promise<Plan> {
+  const rows = await prisma.$queryRaw<Array<{ plan: Plan }>>(Prisma.sql`
+    SELECT "plan"::text AS plan FROM "Organization" WHERE "userId" = ${userId}
+  `)
+  const rank: Record<string, number> = { STARTER: 0, GROWTH: 1, PRO: 2, CFO: 3 }
+  let best: Plan = 'STARTER'
+  for (const r of rows) if ((rank[r.plan] ?? 0) >= (rank[best] ?? 0)) best = r.plan
+  return best
+}
+
+/** Set a new entity's plan to match the owner's (so per-org gating stays consistent). */
+export async function setOrgPlanOnly(orgId: string, plan: Plan): Promise<void> {
+  await prisma.$executeRaw(Prisma.sql`UPDATE "Organization" SET "plan" = CAST(${plan} AS "Plan"), "updatedAt" = now() WHERE "id" = ${orgId}`)
+}

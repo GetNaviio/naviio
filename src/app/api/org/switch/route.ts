@@ -24,9 +24,9 @@ export const GET = withAuth(async (_request, { user }) => {
     ...owned.map((o) => ({ id: o.id, name: o.name, role: 'OWNER' as const })),
     ...joined.map((m) => ({ id: m.org.id, name: m.org.name, role: m.role })),
   ].map((o) => ({ ...o, active: o.id === activeOrgId }))
-  // Multi-entity is a CFO Suite capability: owning one CFO-plan org unlocks
-  // creating client entities (same rule /api/org/create enforces).
-  const canCreate = owned.some((o) => o.plan === 'CFO')
+  // Multi-entity is a Pro+ capability: owning a Pro or CFO org unlocks creating
+  // additional entities (same rule /api/org/create enforces).
+  const canCreate = owned.some((o) => o.plan === 'PRO' || o.plan === 'CFO')
   return Response.json({ orgs, canCreate })
 })
 

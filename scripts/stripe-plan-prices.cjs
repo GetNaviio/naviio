@@ -28,14 +28,19 @@ if (!KEY.startsWith('sk_')) {
 const mode = KEY.startsWith('sk_live_') ? 'LIVE' : 'TEST'
 const stripe = require('stripe')(KEY, { apiVersion: '2026-04-22.dahlia' })
 const ANNUAL_MULT = 10
+const ENTITY_OVERAGE = 9900 // $99/entity/mo
 
-// [planId, label, monthlyCents]
-// Self-serve plans only. CFO Suite is sold via the firm plans
-// (scripts/stripe-firm-prices.cjs), so it's intentionally not duplicated here.
+// [planId, label, monthlyCents, includedEntities]
+//   Starter/Growth: single-entity, flat price.
+//   Pro/CFO: graduated tiered on entity count (quantity = number of own entities):
+//            tier 1 flat base covers the included entities, tier 2 $99/entity.
+//   CFO Suite (direct, $99 overage) is distinct from the fractional-CFO FIRM
+//   white-label price ($59 overage, scripts/stripe-firm-prices.cjs).
 const PLANS = [
-  ['STARTER', 'Naviio Starter', 4900],
-  ['GROWTH', 'Naviio Growth', 14900],
-  ['PRO', 'Naviio Pro', 39900],
+  ['STARTER', 'Naviio Starter', 4900, 1],
+  ['GROWTH', 'Naviio Growth', 14900, 1],
+  ['PRO', 'Naviio Pro', 34900, 3],
+  ['CFO', 'Naviio CFO Suite', 79900, 10],
 ]
 
 async function ensureProduct(planId, name) {
@@ -46,7 +51,7 @@ async function ensureProduct(planId, name) {
   return stripe.products.create({ name, metadata: { naviioPlan: planId } })
 }
 
-async function ensurePrice(productId, lookupKey, interval, amount) {
+async function ensureFlatPrice(productId, lookupKey, interval, amount) {
   const existing = await stripe.prices.list({ lookup_keys: [lookupKey], limit: 1 }).catch(() => ({ data: [] }))
   if (existing.data && existing.data[0]) return existing.data[0]
   return stripe.prices.create({
@@ -59,14 +64,40 @@ async function ensurePrice(productId, lookupKey, interval, amount) {
   })
 }
 
+async function ensureTieredPrice(productId, lookupKey, interval, baseCents, includedEntities, overageCents) {
+  const existing = await stripe.prices.list({ lookup_keys: [lookupKey], limit: 1 }).catch(() => ({ data: [] }))
+  if (existing.data && existing.data[0]) return existing.data[0]
+  return stripe.prices.create({
+    product: productId,
+    currency: 'usd',
+    lookup_key: lookupKey,
+    nickname: lookupKey,
+    recurring: { interval, usage_type: 'licensed' },
+    billing_scheme: 'tiered',
+    tiers_mode: 'graduated',
+    tiers: [
+      { up_to: includedEntities, unit_amount: 0, flat_amount: baseCents },
+      { up_to: 'inf', unit_amount: overageCents },
+    ],
+  })
+}
+
 ;(async () => {
   console.log(`Creating Naviio plan prices in ${mode} mode…\n`)
   const lines = []
-  for (const [planId, name, monthly] of PLANS) {
+  for (const [planId, name, monthly, included] of PLANS) {
     const product = await ensureProduct(planId, name)
-    const m = await ensurePrice(product.id, `plan_${planId.toLowerCase()}_monthly`, 'month', monthly)
-    const a = await ensurePrice(product.id, `plan_${planId.toLowerCase()}_annual`, 'year', monthly * ANNUAL_MULT)
-    console.log(`  ${name.padEnd(20)} monthly ${m.id}  annual ${a.id}`)
+    const multiEntity = included > 1
+    let m, a
+    if (multiEntity) {
+      m = await ensureTieredPrice(product.id, `plan_${planId.toLowerCase()}_monthly`, 'month', monthly, included, ENTITY_OVERAGE)
+      a = await ensureTieredPrice(product.id, `plan_${planId.toLowerCase()}_annual`, 'year', monthly * ANNUAL_MULT, included, ENTITY_OVERAGE * ANNUAL_MULT)
+    } else {
+      m = await ensureFlatPrice(product.id, `plan_${planId.toLowerCase()}_monthly`, 'month', monthly)
+      a = await ensureFlatPrice(product.id, `plan_${planId.toLowerCase()}_annual`, 'year', monthly * ANNUAL_MULT)
+    }
+    const tag = multiEntity ? ` (incl ${included} entities, +$${ENTITY_OVERAGE / 100}/entity)` : ''
+    console.log(`  ${name.padEnd(20)} monthly ${m.id}  annual ${a.id}${tag}`)
     lines.push(`STRIPE_PLAN_PRICE_${planId}_MONTHLY=${m.id}`)
     lines.push(`STRIPE_PLAN_PRICE_${planId}_ANNUAL=${a.id}`)
   }

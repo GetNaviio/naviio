@@ -1,17 +1,20 @@
 /**
- * Multi-entity (CFO Suite): create an additional organization — a separate
- * set of books for a client. Gated to users who OWN at least one CFO-plan
- * org (the fractional CFO's subscription umbrella). Created entities are
- * plan CFO themselves: covered by that subscription, unlimited seats.
+ * Multi-entity: create an additional organization (the owner's own entity /
+ * location, or a CFO's client). Gated to PRO and CFO plans — Starter/Growth are
+ * single-entity. The new entity inherits the owner's plan, and the owner's plan
+ * subscription quantity (= entity count) is bumped so the per-entity overage
+ * (Pro: $99 beyond 3; CFO: $99 beyond 10) is billed automatically.
  *
  * withAuth, not withOrg — creation is an account-level act, and the new org
- * becomes the active one immediately (the dashboard then opens onboarding
- * for it: connect the client's bank).
+ * becomes the active one immediately (the dashboard then opens onboarding).
  */
 import { z } from 'zod'
 import { withAuth } from '@/lib/api/with-org'
 import { prisma } from '@/lib/prisma'
 import { rateLimit } from '@/lib/rate-limit'
+import { getOwnerPlan, getOwnerBillingOrg, countOwnedOrgs } from '@/lib/billing/org-billing-store'
+import { planAllowsMultiEntity } from '@/lib/billing/plans'
+import { syncPlanSubscriptionQuantity, isPlanBillingConfigured } from '@/lib/billing/stripe-plans'
 
 const CreateSchema = z.object({ name: z.string().trim().min(2).max(80) })
 
@@ -25,20 +28,26 @@ export const POST = withAuth(async (request, { user }) => {
     return Response.json({ error: 'Organization name must be 2–80 characters' }, { status: 400 })
   }
 
-  const cfoOrgs = await prisma.organization.count({ where: { userId: user.id, plan: 'CFO' } })
-  if (cfoOrgs === 0) {
+  const ownerPlan = await getOwnerPlan(user.id)
+  if (!planAllowsMultiEntity(ownerPlan)) {
     return Response.json(
-      { error: 'Managing multiple organizations is a CFO Suite feature — upgrade to add client entities', code: 'CFO_REQUIRED' },
+      { error: 'Multiple entities are a Pro feature — upgrade to add another entity.', code: 'PRO_REQUIRED' },
       { status: 403 },
     )
   }
 
+  // New entity inherits the owner's plan (keeps per-org gating consistent).
   const org = await prisma.organization.create({
-    data: { name: parsed.data.name, userId: user.id, plan: 'CFO' },
+    data: { name: parsed.data.name, userId: user.id, plan: ownerPlan },
     select: { id: true, name: true },
   })
-  // Land in the new entity — its dashboard opens the connect-your-bank flow.
   await prisma.user.update({ where: { id: user.id }, data: { activeOrgId: org.id } })
+
+  // Bump the owner's subscription quantity so the per-entity overage bills.
+  const anchor = await getOwnerBillingOrg(user.id)
+  if (anchor?.subscriptionId && isPlanBillingConfigured()) {
+    await syncPlanSubscriptionQuantity(anchor.subscriptionId, await countOwnedOrgs(user.id)).catch(() => {})
+  }
 
   return Response.json({ ok: true, orgId: org.id, name: org.name }, { status: 201 })
 })

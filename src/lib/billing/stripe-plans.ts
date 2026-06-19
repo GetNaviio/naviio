@@ -20,7 +20,7 @@ function stripe(): Stripe {
 
 // Self-serve plans only. CFO Suite is sold via the fractional-CFO firm plans
 // (lib/firm/*), so it has no individual price here — avoids a duplicate $799 SKU.
-const PLAN_IDS: Plan[] = ['STARTER', 'GROWTH', 'PRO']
+const PLAN_IDS: Plan[] = ['STARTER', 'GROWTH', 'PRO', 'CFO']
 
 /** Env var name for a plan/cycle price, e.g. STRIPE_PLAN_PRICE_GROWTH_ANNUAL. */
 function envName(plan: Plan, cycle: BillingCycle): string {
@@ -43,19 +43,21 @@ export function planFromPriceId(priceId: string): Plan | null {
   return null
 }
 
-/** Checkout (subscription mode) for an org upgrading/subscribing to a plan. */
+/** Checkout (subscription mode) for an org upgrading/subscribing to a plan.
+ *  `entities` sets the quantity for multi-entity (Pro/CFO graduated) prices. */
 export async function createPlanCheckout(input: {
   orgId: string
   plan: Plan
   cycle: BillingCycle
   customerId: string | null
   origin: string
+  entities?: number
 }): Promise<string> {
   const price = priceIdForPlan(input.plan, input.cycle)
   if (!price) throw new Error('plan price not configured')
   const session = await stripe().checkout.sessions.create({
     mode: 'subscription',
-    line_items: [{ price, quantity: 1 }],
+    line_items: [{ price, quantity: Math.max(1, input.entities ?? 1) }],
     customer: input.customerId ?? undefined,
     client_reference_id: input.orgId,
     metadata: { orgId: input.orgId, plan: input.plan, cycle: input.cycle },
@@ -89,4 +91,15 @@ export function constructPlanBillingEvent(body: string, signature: string): Stri
 export function planOfSubscription(sub: Stripe.Subscription): Plan | null {
   const priceId = sub.items?.data?.[0]?.price?.id
   return priceId ? planFromPriceId(priceId) : null
+}
+
+/** Keep the plan subscription quantity (= entity count) in sync with the roster. */
+export async function syncPlanSubscriptionQuantity(subscriptionId: string, entities: number): Promise<void> {
+  const s = stripe()
+  const sub = await s.subscriptions.retrieve(subscriptionId)
+  const item = sub.items.data[0]
+  if (!item) return
+  const qty = Math.max(1, entities)
+  if (item.quantity === qty) return
+  await s.subscriptionItems.update(item.id, { quantity: qty, proration_behavior: 'create_prorations' })
 }
