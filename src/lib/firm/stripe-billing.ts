@@ -144,6 +144,13 @@ export function constructConnectEvent(body: string, signature: string): Stripe.E
   return platformStripe().webhooks.constructEvent(body, signature, secret)
 }
 
+/** Verify + parse a firm platform-subscription webhook (customer.subscription.*).
+ *  These fire on Naviio's own account. Falls back to STRIPE_WEBHOOK_SECRET. */
+export function constructFirmBillingEvent(body: string, signature: string): Stripe.Event {
+  const secret = process.env.STRIPE_FIRM_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || ''
+  return platformStripe().webhooks.constructEvent(body, signature, secret)
+}
+
 /**
  * The Stripe Subscription params for an Option-2 CLIENT subscription, so the
  * client pays through Naviio and the firm receives (100 − commissionPct)%.

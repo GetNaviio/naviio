@@ -333,6 +333,7 @@ model Firm {
   commissionPct          Int     @default(0)     // 0 (Opt1) / 15 (Opt2)
   stripeCustomerId       String? // firm's customer for the platform subscription
   stripeSubscriptionId   String? // the platform (base + overage) subscription
+  subscriptionStatus     String  @default("none") // none | active | trialing | past_due | canceled | unpaid
   stripeConnectAccountId String? // Connect account that receives client payments (Opt2)
   connectStatus          String  @default("none") // none | pending | enabled
 

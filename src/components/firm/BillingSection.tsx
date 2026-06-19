@@ -37,6 +37,7 @@ export default function BillingSection() {
   const [billingConfigured, setBillingConfigured] = useState(true)
   const [priceConfigured, setPriceConfigured] = useState(false)
   const [subscriptionActive, setSubscriptionActive] = useState(false)
+  const [subStatus, setSubStatus] = useState<string>('none')
   const [cycle, setCycle] = useState<Cycle>('monthly')
   const [busy, setBusy] = useState(false)
 
@@ -51,6 +52,7 @@ export default function BillingSection() {
     setBillingConfigured(data.billingConfigured ?? false)
     setPriceConfigured(data.priceConfiguredForPlan ?? false)
     setSubscriptionActive(data.subscriptionActive ?? false)
+    setSubStatus(data.subscriptionStatus ?? 'none')
     setCycle(data.cycle ?? 'monthly')
   }, [])
 
@@ -206,12 +208,16 @@ export default function BillingSection() {
         <div className="mt-4 rounded-lg border p-3 flex items-center justify-between" style={{ borderColor: 'var(--color-surface-border)' }}>
           <div>
             <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Platform subscription</p>
-            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+            <p className="text-xs" style={{ color: subStatus === 'past_due' || subStatus === 'unpaid' ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
               {subscriptionActive
                 ? `Active — ${bill ? usd(bill.platformDueCents) : ''}/${cycle === 'annual' ? 'yr' : 'mo'}, adjusts automatically as you add clients.`
-                : priceConfigured
-                  ? 'Add a payment method to start your subscription.'
-                  : 'Pricing isn’t configured on the server yet.'}
+                : subStatus === 'past_due' || subStatus === 'unpaid'
+                  ? 'Payment past due — update your card to keep access.'
+                  : subStatus === 'canceled'
+                    ? 'Subscription canceled. Reactivate to continue.'
+                    : priceConfigured
+                      ? 'Add a payment method to start your subscription.'
+                      : 'Pricing isn’t configured on the server yet.'}
             </p>
           </div>
           {subscriptionActive ? (
@@ -225,7 +231,7 @@ export default function BillingSection() {
               className="text-sm font-medium px-3 py-2 rounded-lg text-white whitespace-nowrap"
               style={{ backgroundColor: 'var(--color-info)', opacity: busy || !billingConfigured || !priceConfigured ? 0.6 : 1 }}
             >
-              Activate billing
+              {subStatus === 'past_due' || subStatus === 'unpaid' ? 'Update payment' : subStatus === 'canceled' ? 'Reactivate' : 'Activate billing'}
             </button>
           )}
         </div>

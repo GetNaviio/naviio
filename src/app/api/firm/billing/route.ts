@@ -44,7 +44,8 @@ export const GET = withAuth(async (_request, { user }) => {
     billingConfigured: isBillingConfigured(),
     pricesConfigured: arePricesConfigured(),
     priceConfiguredForPlan: !!priceIdFor(plan, cycle),
-    subscriptionActive: !!billing?.stripeSubscriptionId,
+    subscriptionStatus: billing?.subscriptionStatus ?? 'none',
+    subscriptionActive: billing?.subscriptionStatus === 'active' || billing?.subscriptionStatus === 'trialing',
   })
 })
 

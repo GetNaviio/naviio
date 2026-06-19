@@ -16,6 +16,7 @@ export interface FirmBilling {
   commissionPct: number
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
+  subscriptionStatus: string
   stripeConnectAccountId: string | null
   connectStatus: string
 }
@@ -23,7 +24,8 @@ export interface FirmBilling {
 export async function getFirmBilling(firmId: string): Promise<FirmBilling | null> {
   const rows = await prisma.$queryRaw<FirmBilling[]>(Prisma.sql`
     SELECT "id", "plan", "billingCycle", "baseFeeCents", "includedOrgs", "overagePerOrgCents",
-           "commissionPct", "stripeCustomerId", "stripeSubscriptionId", "stripeConnectAccountId", "connectStatus"
+           "commissionPct", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus",
+           "stripeConnectAccountId", "connectStatus"
     FROM "Firm" WHERE "id" = ${firmId} LIMIT 1
   `)
   return rows[0] ?? null
@@ -32,8 +34,17 @@ export async function getFirmBilling(firmId: string): Promise<FirmBilling | null
 /** Persist the firm's platform-subscription Stripe identifiers (after checkout). */
 export async function setFirmStripeIds(firmId: string, customerId: string, subscriptionId: string): Promise<void> {
   await prisma.$executeRaw(Prisma.sql`
-    UPDATE "Firm" SET "stripeCustomerId" = ${customerId}, "stripeSubscriptionId" = ${subscriptionId}, "updatedAt" = now()
+    UPDATE "Firm" SET "stripeCustomerId" = ${customerId}, "stripeSubscriptionId" = ${subscriptionId},
+      "subscriptionStatus" = 'active', "updatedAt" = now()
     WHERE "id" = ${firmId}
+  `)
+}
+
+/** Update the firm's subscription status by Stripe subscription id (webhook). */
+export async function setSubscriptionStatusBySubId(subscriptionId: string, status: string): Promise<void> {
+  await prisma.$executeRaw(Prisma.sql`
+    UPDATE "Firm" SET "subscriptionStatus" = ${status}, "updatedAt" = now()
+    WHERE "stripeSubscriptionId" = ${subscriptionId}
   `)
 }
 
