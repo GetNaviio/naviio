@@ -85,6 +85,9 @@ export default function PlanSection() {
   }
 
   const currentIdx = ORDER.indexOf(current)
+  const currentDef = plans.find((p) => p.id === current)
+  const includedForCurrent = currentDef?.includedEntities ?? 1
+  const overLimit = entityCount > includedForCurrent
   // Nudge to a cheaper multi-entity plan when one exists and it isn't the current one.
   const showNudge = entityCount > 3 && recommended !== current && (current === 'PRO' || current === 'CFO')
 
@@ -110,8 +113,11 @@ export default function PlanSection() {
           ? 'Payment past due — update your card to keep your plan.'
           : `You're on the ${currentLabel} plan.`}
       </p>
-      <p className="flex items-center gap-1.5 text-xs mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-        <Building2 size={13} /> {entityCount} {entityCount === 1 ? 'entity' : 'entities'}
+      <p className="flex items-center gap-1.5 text-xs mb-4" style={{ color: overLimit ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
+        <Building2 size={13} />
+        {entityCount} {entityCount === 1 ? 'entity' : 'entities'} in use · {currentLabel} includes{' '}
+        {includedForCurrent}
+        {overLimit ? ` — ${entityCount - includedForCurrent} over your plan` : ''}
       </p>
 
       {showNudge && (
