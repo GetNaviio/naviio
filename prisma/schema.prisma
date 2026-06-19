@@ -321,6 +321,20 @@ model Firm {
   name         String
   brandLogoUrl String?  // white-label: https logo URL shown on the client portal
   brandColor   String?  // white-label: #hex accent
+
+  // ── Billing (see lib/firm/billing.ts for canonical plan defaults) ──
+  // plan: 'white_label'      = Option 1 — firm pays, does NOT charge clients
+  //       'white_label_saas' = Option 2 — firm resells, Naviio takes commission
+  plan                   String  @default("white_label")
+  baseFeeCents           Int     @default(79900) // $799 (Opt1) / $997 (Opt2)
+  includedOrgs           Int     @default(10)    // 10 (Opt1) / 25 (Opt2)
+  overagePerOrgCents     Int     @default(5900)  // $59/org beyond includedOrgs (Opt1)
+  commissionPct          Int     @default(0)     // 0 (Opt1) / 15 (Opt2)
+  stripeCustomerId       String? // firm's customer for the platform subscription
+  stripeSubscriptionId   String? // the platform (base + overage) subscription
+  stripeConnectAccountId String? // Connect account that receives client payments (Opt2)
+  connectStatus          String  @default("none") // none | pending | enabled
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

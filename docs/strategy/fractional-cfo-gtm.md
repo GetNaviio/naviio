@@ -55,15 +55,37 @@ This is the GTM-critical foundation: an advisor can run a real client engagement
 
 ---
 
-## 5. Packaging & pricing
+## 5. Packaging & pricing (decided)
 
-Keep it simple for the pilot; formalize after we see usage.
+Two firm plans (see `lib/firm/billing.ts` for the canonical numbers; decision in
+`docs/decisions/0053-firm-billing-plans.md`):
 
-- **Pilot (now):** free for the advisor and their first 3–5 clients during the design-partner period, in exchange for feedback calls and a testimonial/case study. No card required.
-- **Post-pilot — Firm plan (the new SKU):** priced per active client workspace, billed to the firm, with the firm's branding on the portal and board packs. Indicative: **$X/client/mo** (set after pilot; benchmark against Fathom ~$44–$179/mo tiers and Jirav), volume tiers at 10/25/50 clients. The firm pays; clients get their own login at no separate charge.
-- **Client self-upgrade path (later):** a client who wants Naviio beyond the engagement converts to a direct plan — the channel becomes a funnel.
+**Option 1 — White-label ($799/mo).** The firm pays Naviio and absorbs the cost as
+part of its service; **clients are not charged**. Includes up to **10 client orgs**,
+then **$59/org/mo**. Billed as a direct Stripe subscription (base + graduated
+per-org overage). For firms that bundle software into their fee.
 
-Billing is per-org today (`CreditAccount`); a firm-level rollup is the next billing build once pricing is set. **Open decision for Eric:** firm pays for all client seats (recommended for the channel motion) vs. each client pays. Defaulting to firm-pays unless told otherwise.
+**Option 2 — White-label + SaaS resale ($997/mo).** The firm **resells** Naviio to
+its clients and sets its own retail price. Includes up to **25 client orgs**
+(then $59/org). Clients pay through Naviio via **Stripe Connect**, and Naviio keeps
+a **15% commission** as an application fee — collected automatically, no reporting,
+no leakage. For established firms turning Naviio into a profit center. (Rule of
+thumb: a firm needs ~8 paying resale clients to clear the $997 base, so steer
+newer firms to Option 1.)
+
+- **Pilot (now):** free for the advisor and their first 3–5 clients during the
+  design-partner period, in exchange for feedback and a testimonial. No card.
+- **Client self-upgrade path (later):** a client who wants Naviio beyond the
+  engagement converts to a direct plan — the channel becomes a funnel.
+
+**Worked example (15 clients, ~$150/org client price):** Option 1 → Naviio $1,094/mo.
+Option 2 @15% → Naviio $1,334/mo and the firm nets ~$916/mo of resale margin *on top
+of* its service fees. Option 2 earns Naviio more and hands the firm a profit center —
+which is why it's the upsell.
+
+Both plans are implemented (plan picker + estimated bill on the Clients page,
+Connect onboarding for Option 2). Live charging activates once Stripe billing keys
++ Connect are enabled on the platform account.
 
 ---
 

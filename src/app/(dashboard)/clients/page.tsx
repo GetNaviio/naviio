@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/layout/Header'
+import BillingSection from '@/components/firm/BillingSection'
 import { Users, UserPlus, Copy, Check, ArrowRight, Building2, Clock, Banknote } from 'lucide-react'
 
 interface Client {
@@ -108,6 +109,9 @@ export default function ClientsPage() {
           {firm ? firm.name : 'Your practice'} — invite clients, then open any client&rsquo;s workspace to do the work.
           Each client owns their own login and data; you have advisor access they can revoke anytime.
         </p>
+
+        {/* Plan & billing */}
+        <BillingSection />
 
         {/* Add client */}
         <div className="rounded-xl border p-5 mb-6" style={card}>
