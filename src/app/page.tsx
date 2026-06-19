@@ -115,6 +115,33 @@ nav.nv { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex
 .pricing-card.featured .pricing-btn { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 20px rgba(37,99,255,0.3); }
 .pricing-btn:hover { opacity: 0.85; }
 
+/* Naviio Card section */
+.card-section { padding: 6rem clamp(1.25rem, 4vw, 3rem); background: rgba(255,255,255,0.02); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); scroll-margin-top: 88px; }
+.card-wrap { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1.1fr 1fr; gap: 3.5rem; align-items: center; }
+@media(max-width:860px){ .card-wrap{ grid-template-columns: 1fr; gap: 2.5rem; } }
+.card-copy .section-title { margin-bottom: 1.25rem; }
+.card-points { list-style: none; margin: 1.5rem 0 2rem; }
+.card-points li { font-size: 0.92rem; color: var(--muted); padding: 0.45rem 0; display: flex; align-items: flex-start; gap: 10px; line-height: 1.55; }
+.card-points li .check { color: var(--accent2); margin-top: 2px; }
+.card-note { font-size: 0.78rem; color: var(--muted); margin-top: 1rem; opacity: 0.8; }
+.card-visual { display: flex; justify-content: center; perspective: 1200px; }
+.naviio-card { width: 100%; max-width: 380px; aspect-ratio: 1.586; border-radius: 18px; padding: 1.5rem 1.6rem;
+  background: linear-gradient(135deg, #1c2340 0%, #0a0e1a 70%); border: 1px solid rgba(37,99,255,0.35);
+  box-shadow: 0 30px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08);
+  display: flex; flex-direction: column; justify-content: space-between; transform: rotateY(-12deg) rotateX(6deg); transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.22,1,0.36,1); }
+.naviio-card:hover { transform: rotateY(-4deg) rotateX(2deg) scale(1.02); }
+.nc-top { display: flex; justify-content: space-between; align-items: center; }
+.nc-brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 1rem; }
+.nc-brand .hv-brand-dot { width: 11px; height: 11px; }
+.nc-chip { width: 38px; height: 28px; border-radius: 6px; background: linear-gradient(135deg, #d4af37, #b8902a); opacity: 0.85; }
+.nc-number { font-family: 'DM Sans', sans-serif; font-size: 1.05rem; letter-spacing: 0.12em; color: rgba(255,255,255,0.85); }
+.nc-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
+.nc-bottom span { display: block; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 2px; }
+.nc-bottom strong { font-size: 0.82rem; font-weight: 500; }
+.nc-net { font-style: italic; color: var(--accent2); font-weight: 600; font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce){ .naviio-card, .naviio-card:hover { transform: none; transition: none; } }
+
 /* CTA */
 .cta-section { padding: 7rem clamp(1.25rem, 4vw, 3rem); text-align: center; position: relative; overflow: hidden; }
 .cta-section::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(37,99,255,0.12) 0%, transparent 70%); pointer-events: none; }
@@ -361,6 +388,7 @@ export default function LandingPage() {
         <div className="nv-links">
           <a href="#features">Features</a>
           <a href="#integrations">Integrations</a>
+          <a href="#card">Card</a>
           <a href="#pricing">Pricing</a>
           <a href="#waitlist" className="nv-cta">Get early access</a>
         </div>
@@ -554,6 +582,45 @@ export default function LandingPage() {
               <a href="#waitlist" className="pricing-btn">Join the waitlist</a>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Naviio Card */}
+      <section className="card-section" id="card">
+        <div className="card-wrap">
+          <div className="card-copy reveal">
+            <div className="section-tag">Coming soon</div>
+            <h2 className="section-title">The corporate card that <em>knows your numbers</em></h2>
+            <p className="section-sub" style={{ marginBottom: 0 }}>
+              Most cards show you what you spent. The Naviio Card is wired into the same engine that runs your dashboard — so every swipe is categorized, benchmarked against companies your size, and reflected in your runway the moment it clears.
+            </p>
+            <ul className="card-points">
+              <li><span className="check">✓</span> Spend that auto-categorizes and updates your P&amp;L in real time — no expense reports.</li>
+              <li><span className="check">✓</span> Navi flags when a charge is above what similar companies pay, before it becomes a habit.</li>
+              <li><span className="check">✓</span> Controls, limits, and runway impact built in — issued to your team, governed by your plan.</li>
+            </ul>
+            <WaitlistForm product="card" cta="Join card waitlist" />
+            <p className="card-note">Read-only by design during the waitlist. We&rsquo;ll reach out before anything is issued.</p>
+          </div>
+          <div className="card-visual reveal">
+            <div className="naviio-card" role="img" aria-label="Naviio Card concept">
+              <div className="nc-top">
+                <span className="nc-brand"><span className="hv-brand-dot" />Naviio</span>
+                <span className="nc-chip" aria-hidden="true" />
+              </div>
+              <div className="nc-number">•••• •••• •••• 0214</div>
+              <div className="nc-bottom">
+                <div>
+                  <span>Cardholder</span>
+                  <strong>Your Company, Inc.</strong>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span>This month</span>
+                  <strong className="nc-net">on plan ✓</strong>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

@@ -485,8 +485,11 @@ model Alert {
 
 model Waitlist {
   id        String   @id @default(cuid())
-  email     String   @unique
+  email     String
+  product   String   @default("app") // "app" = main product, "card" = Naviio Card
   createdAt DateTime @default(now())
+
+  @@unique([email, product]) // a person may join both the app and card waitlists
 }
 
 // ─── Financial model: COGS/OpEx overrides ──────────────────────────────────────

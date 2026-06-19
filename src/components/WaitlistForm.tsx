@@ -11,8 +11,17 @@ type Status = 'idle' | 'loading' | 'success' | 'error'
  * button jumped to the top of the page instead of submitting).
  *
  * Reuses the global landing CSS classes (cta-input-row, cta-input, btn-primary).
+ *
+ * `product` selects which waitlist this signup joins ("app" = main product,
+ * "card" = Naviio Card). `cta` overrides the button label.
  */
-export default function WaitlistForm() {
+export default function WaitlistForm({
+  product = 'app',
+  cta = 'Join waitlist',
+}: {
+  product?: 'app' | 'card'
+  cta?: string
+} = {}) {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<Status>('idle')
   const [message, setMessage] = useState('')
@@ -27,7 +36,7 @@ export default function WaitlistForm() {
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, product }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.')
@@ -74,7 +83,7 @@ export default function WaitlistForm() {
           opacity: status === 'loading' ? 0.7 : 1,
         }}
       >
-        {status === 'loading' ? 'Joining…' : 'Join waitlist'}
+        {status === 'loading' ? 'Joining…' : cta}
       </button>
       {status === 'error' && (
         <p style={{ flexBasis: '100%', color: '#ff6b6b', fontSize: '0.85rem', marginTop: 4 }}>

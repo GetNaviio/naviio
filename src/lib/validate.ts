@@ -31,6 +31,8 @@ export const LoginSchema = z.object({
 
 export const WaitlistSchema = z.object({
   email: EmailSchema,
+  // Which waitlist they're joining. Defaults to the main app.
+  product: z.enum(['app', 'card']).default('app'),
 })
 
 type ParseResult<T> = { ok: true; data: T } | { ok: false; response: Response }

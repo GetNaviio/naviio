@@ -12,12 +12,12 @@ export async function POST(req: Request) {
 
     const parsed = await parseBody(req, WaitlistSchema)
     if (!parsed.ok) return parsed.response
-    const { email } = parsed.data // trimmed + lowercased by schema
+    const { email, product } = parsed.data // trimmed + lowercased by schema
 
     await prisma.waitlist.upsert({
-      where: { email },
+      where: { email_product: { email, product } },
       update: {},
-      create: { email },
+      create: { email, product },
     })
 
     return NextResponse.json({ success: true })
@@ -40,15 +40,19 @@ function isAdmin(email: string): boolean {
   return admins.includes(email.toLowerCase())
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await requireAuth()
     if (!isAdmin(user.email)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+    // Optional ?product=card|app filter for the admin view.
+    const productParam = new URL(req.url).searchParams.get('product')
+    const where = productParam === 'card' || productParam === 'app' ? { product: productParam } : {}
     const entries = await prisma.waitlist.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
-      select: { id: true, email: true, createdAt: true },
+      select: { id: true, email: true, product: true, createdAt: true },
     })
     return NextResponse.json({ count: entries.length, entries })
   } catch (err) {
