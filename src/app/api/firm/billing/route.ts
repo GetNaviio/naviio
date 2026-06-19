@@ -7,8 +7,8 @@
 import { z } from 'zod'
 import { withAuth } from '@/lib/api/with-org'
 import { getFirmForOwner, getOrCreateFirm } from '@/lib/firm/firm'
-import { getFirmBilling, setFirmPlan, countFirmOrgs } from '@/lib/firm/billing-store'
-import { PLANS, computeFirmBill, type FirmPlan } from '@/lib/firm/billing'
+import { getFirmBilling, setFirmPlan, setFirmCycle, countFirmOrgs } from '@/lib/firm/billing-store'
+import { PLANS, computeFirmBill, type FirmPlan, type BillingCycle } from '@/lib/firm/billing'
 import { isBillingConfigured } from '@/lib/firm/stripe-billing'
 
 export const GET = withAuth(async (_request, { user }) => {
@@ -26,26 +26,37 @@ export const GET = withAuth(async (_request, { user }) => {
   }
   const [billing, orgCount] = await Promise.all([getFirmBilling(firm.id), countFirmOrgs(firm.id)])
   const plan = (billing?.plan ?? 'white_label') as FirmPlan
+  const cycle = (billing?.billingCycle ?? 'monthly') as BillingCycle
   return Response.json({
     firm: { id: firm.id, name: firm.name },
     plans,
     orgCount,
     current: billing,
-    bill: computeFirmBill(plan, orgCount),
+    cycle,
+    bill: computeFirmBill(plan, orgCount, cycle),
     connectStatus: billing?.connectStatus ?? 'none',
     billingConfigured: isBillingConfigured(),
   })
 })
 
-const SelectSchema = z.object({ plan: z.enum(['white_label', 'white_label_saas']) })
+const SelectSchema = z.object({
+  plan: z.enum(['white_label', 'white_label_saas']).optional(),
+  cycle: z.enum(['monthly', 'annual']).optional(),
+})
 
 export const PUT = withAuth(async (request, { user }) => {
   const body = await request.json().catch(() => null)
   const parsed = SelectSchema.safeParse(body)
-  if (!parsed.success) return Response.json({ error: 'Invalid plan' }, { status: 400 })
+  if (!parsed.success || (!parsed.data.plan && !parsed.data.cycle))
+    return Response.json({ error: 'Provide a plan and/or cycle' }, { status: 400 })
 
   const firm = await getOrCreateFirm(user.id, user.name ? `${user.name}'s Practice` : 'My Practice')
-  await setFirmPlan(firm.id, parsed.data.plan)
+  if (parsed.data.plan) await setFirmPlan(firm.id, parsed.data.plan)
+  if (parsed.data.cycle) await setFirmCycle(firm.id, parsed.data.cycle)
+
+  const billing = await getFirmBilling(firm.id)
+  const plan = (parsed.data.plan ?? billing?.plan ?? 'white_label') as FirmPlan
+  const cycle = (parsed.data.cycle ?? billing?.billingCycle ?? 'monthly') as BillingCycle
   const orgCount = await countFirmOrgs(firm.id)
-  return Response.json({ ok: true, plan: parsed.data.plan, bill: computeFirmBill(parsed.data.plan, orgCount) })
+  return Response.json({ ok: true, plan, cycle, bill: computeFirmBill(plan, orgCount, cycle) })
 })

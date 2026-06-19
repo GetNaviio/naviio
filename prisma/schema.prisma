@@ -326,6 +326,7 @@ model Firm {
   // plan: 'white_label'      = Option 1 — firm pays, does NOT charge clients
   //       'white_label_saas' = Option 2 — firm resells, Naviio takes commission
   plan                   String  @default("white_label")
+  billingCycle           String  @default("monthly") // monthly | annual (~2 months free)
   baseFeeCents           Int     @default(79900) // $799 (Opt1) / $997 (Opt2)
   includedOrgs           Int     @default(10)    // 10 (Opt1) / 25 (Opt2)
   overagePerOrgCents     Int     @default(5900)  // $59/org beyond includedOrgs (Opt1)

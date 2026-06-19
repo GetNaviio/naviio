@@ -13,37 +13,51 @@
  * All money is in integer cents.
  */
 export type FirmPlan = 'white_label' | 'white_label_saas'
+export type BillingCycle = 'monthly' | 'annual'
+
+/** Annual = pay for 10 months, get 12 (~17% off, "2 months free"). */
+export const ANNUAL_MONTHS_CHARGED = 10
 
 export interface PlanDef {
   id: FirmPlan
   label: string
-  baseFeeCents: number
+  baseFeeCents: number // monthly
+  annualBaseFeeCents: number // billed once per year
   includedOrgs: number
-  overagePerOrgCents: number
+  overagePerOrgCents: number // monthly
+  annualOveragePerOrgCents: number // per org, per year
   /** Naviio's commission on client payments (Option 2 only). 0 for Option 1. */
   commissionPct: number
   chargesClients: boolean
 }
 
+function planDef(
+  id: FirmPlan,
+  label: string,
+  baseMonthly: number,
+  includedOrgs: number,
+  overageMonthly: number,
+  commissionPct: number,
+  chargesClients: boolean,
+): PlanDef {
+  return {
+    id,
+    label,
+    baseFeeCents: baseMonthly,
+    annualBaseFeeCents: baseMonthly * ANNUAL_MONTHS_CHARGED,
+    includedOrgs,
+    overagePerOrgCents: overageMonthly,
+    annualOveragePerOrgCents: overageMonthly * ANNUAL_MONTHS_CHARGED,
+    commissionPct,
+    chargesClients,
+  }
+}
+
 export const PLANS: Record<FirmPlan, PlanDef> = {
-  white_label: {
-    id: 'white_label',
-    label: 'White-label',
-    baseFeeCents: 79_900, // $799
-    includedOrgs: 10,
-    overagePerOrgCents: 5_900, // $59/org after 10
-    commissionPct: 0,
-    chargesClients: false,
-  },
-  white_label_saas: {
-    id: 'white_label_saas',
-    label: 'White-label + SaaS resale',
-    baseFeeCents: 99_700, // $997
-    includedOrgs: 25,
-    overagePerOrgCents: 5_900, // $59/org after 25 (same marginal rate)
-    commissionPct: 15,
-    chargesClients: true,
-  },
+  // Option 1 — $799/mo, 10 orgs, $59/org overage, firm absorbs cost.
+  white_label: planDef('white_label', 'White-label', 79_900, 10, 5_900, 0, false),
+  // Option 2 — $997/mo, 25 orgs, $59/org overage, 15% commission on resale.
+  white_label_saas: planDef('white_label_saas', 'White-label + SaaS resale', 99_700, 25, 5_900, 15, true),
 }
 
 export function getPlan(plan: FirmPlan | string): PlanDef {
@@ -52,29 +66,42 @@ export function getPlan(plan: FirmPlan | string): PlanDef {
 
 export interface FirmBill {
   plan: FirmPlan
+  cycle: BillingCycle
   orgCount: number
   includedOrgs: number
   baseFeeCents: number
   overageOrgs: number
   overageCents: number
-  /** Platform subscription billed to the firm (base + overage). */
+  /** Total billed to the firm this cycle (base + overage). */
   platformDueCents: number
+  /** Normalized to a per-month figure for apples-to-apples display. */
+  effectiveMonthlyCents: number
   commissionPct: number
 }
 
 /** What Naviio bills the firm directly (the platform subscription). */
-export function computeFirmBill(plan: FirmPlan | string, orgCount: number): FirmBill {
+export function computeFirmBill(
+  plan: FirmPlan | string,
+  orgCount: number,
+  cycle: BillingCycle = 'monthly',
+): FirmBill {
   const p = getPlan(plan)
   const overageOrgs = Math.max(0, orgCount - p.includedOrgs)
-  const overageCents = overageOrgs * p.overagePerOrgCents
+  const annual = cycle === 'annual'
+  const base = annual ? p.annualBaseFeeCents : p.baseFeeCents
+  const perOrg = annual ? p.annualOveragePerOrgCents : p.overagePerOrgCents
+  const overageCents = overageOrgs * perOrg
+  const platformDueCents = base + overageCents
   return {
     plan: p.id,
+    cycle,
     orgCount,
     includedOrgs: p.includedOrgs,
-    baseFeeCents: p.baseFeeCents,
+    baseFeeCents: base,
     overageOrgs,
     overageCents,
-    platformDueCents: p.baseFeeCents + overageCents,
+    platformDueCents,
+    effectiveMonthlyCents: annual ? Math.round(platformDueCents / 12) : platformDueCents,
     commissionPct: p.commissionPct,
   }
 }

@@ -8,10 +8,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Check, CreditCard, Banknote, Percent, ExternalLink } from 'lucide-react'
 
+type Cycle = 'monthly' | 'annual'
 interface PlanDef {
   id: 'white_label' | 'white_label_saas'
   label: string
   baseFeeCents: number
+  annualBaseFeeCents: number
   includedOrgs: number
   overagePerOrgCents: number
   commissionPct: number
@@ -22,6 +24,7 @@ interface Bill {
   overageOrgs: number
   overageCents: number
   platformDueCents: number
+  effectiveMonthlyCents: number
 }
 const usd = (c: number) => `$${(c / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 
@@ -32,6 +35,7 @@ export default function BillingSection() {
   const [bill, setBill] = useState<Bill | null>(null)
   const [connectStatus, setConnectStatus] = useState<string>('none')
   const [billingConfigured, setBillingConfigured] = useState(true)
+  const [cycle, setCycle] = useState<Cycle>('monthly')
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -43,24 +47,30 @@ export default function BillingSection() {
     setBill(data.bill ?? null)
     setConnectStatus(data.connectStatus ?? 'none')
     setBillingConfigured(data.billingConfigured ?? false)
+    setCycle(data.cycle ?? 'monthly')
   }, [])
 
   useEffect(() => {
     load()
   }, [load])
 
-  async function selectPlan(plan: PlanDef['id']) {
+  async function patch(payload: { plan?: PlanDef['id']; cycle?: Cycle }) {
     setBusy(true)
     try {
       await fetch('/api/firm/billing', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify(payload),
       })
       await load()
     } finally {
       setBusy(false)
     }
+  }
+  const selectPlan = (plan: PlanDef['id']) => patch({ plan })
+  const setBillingCycle = (c: Cycle) => {
+    setCycle(c)
+    patch({ cycle: c })
   }
 
   async function startConnect() {
@@ -82,10 +92,33 @@ export default function BillingSection() {
         <CreditCard size={16} style={{ color: 'var(--color-info)' }} />
         <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Plan &amp; billing</h2>
       </div>
-      <p className="text-xs mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-        {orgCount} client {orgCount === 1 ? 'org' : 'orgs'} active
-        {bill && current ? ` · estimated platform bill ${usd(bill.platformDueCents)}/mo` : ''}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+          {orgCount} client {orgCount === 1 ? 'org' : 'orgs'} active
+          {bill && current
+            ? ` · ${usd(bill.platformDueCents)}/${cycle === 'annual' ? 'yr' : 'mo'}` +
+              (cycle === 'annual' ? ` (${usd(bill.effectiveMonthlyCents)}/mo)` : '')
+            : ''}
+        </p>
+        {/* Monthly / annual toggle */}
+        <div className="inline-flex rounded-lg border p-0.5 text-xs" style={{ borderColor: 'var(--color-surface-border)' }}>
+          {(['monthly', 'annual'] as Cycle[]).map((c) => (
+            <button
+              key={c}
+              onClick={() => setBillingCycle(c)}
+              disabled={busy}
+              className="px-2.5 py-1 rounded-md font-medium capitalize"
+              style={{
+                backgroundColor: cycle === c ? 'var(--color-info)' : 'transparent',
+                color: cycle === c ? '#fff' : 'var(--color-text-secondary)',
+              }}
+            >
+              {c}
+              {c === 'annual' ? ' · 2 mo free' : ''}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="grid sm:grid-cols-2 gap-3">
         {plans.map((p) => {
@@ -108,7 +141,15 @@ export default function BillingSection() {
                 )}
               </div>
               <p className="text-2xl font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-                {usd(p.baseFeeCents)}<span className="text-sm font-normal" style={{ color: 'var(--color-text-secondary)' }}>/mo</span>
+                {cycle === 'annual' ? usd(p.annualBaseFeeCents) : usd(p.baseFeeCents)}
+                <span className="text-sm font-normal" style={{ color: 'var(--color-text-secondary)' }}>
+                  /{cycle === 'annual' ? 'yr' : 'mo'}
+                </span>
+                {cycle === 'annual' && (
+                  <span className="block text-xs font-normal" style={{ color: 'var(--color-success)' }}>
+                    {usd(Math.round(p.annualBaseFeeCents / 12))}/mo · 2 months free
+                  </span>
+                )}
               </p>
               <ul className="text-xs space-y-1 mb-3" style={{ color: 'var(--color-text-secondary)' }}>
                 <li className="flex items-center gap-1.5"><Banknote size={12} /> Up to {p.includedOrgs} client orgs, then {usd(p.overagePerOrgCents)}/org</li>

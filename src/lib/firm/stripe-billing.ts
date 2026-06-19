@@ -64,6 +64,18 @@ export async function getConnectStatus(accountId: string): Promise<'pending' | '
   return account.charges_enabled && account.payouts_enabled ? 'enabled' : 'pending'
 }
 
+/** Derive our connect status from a Stripe Account object (used by the webhook). */
+export function statusOfAccount(account: Stripe.Account): 'pending' | 'enabled' {
+  return account.charges_enabled && account.payouts_enabled ? 'enabled' : 'pending'
+}
+
+/** Verify + parse a Stripe Connect webhook (account.updated). Falls back to the
+ *  main webhook secret if a Connect-specific one isn't set. */
+export function constructConnectEvent(body: string, signature: string): Stripe.Event {
+  const secret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || ''
+  return platformStripe().webhooks.constructEvent(body, signature, secret)
+}
+
 /**
  * The Stripe Subscription params for an Option-2 CLIENT subscription, so the
  * client pays through Naviio and the firm receives (100 − commissionPct)%.

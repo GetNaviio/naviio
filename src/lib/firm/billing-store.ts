@@ -4,11 +4,12 @@
  */
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
-import { PLANS, type FirmPlan } from '@/lib/firm/billing'
+import { PLANS, type FirmPlan, type BillingCycle } from '@/lib/firm/billing'
 
 export interface FirmBilling {
   id: string
   plan: FirmPlan
+  billingCycle: BillingCycle
   baseFeeCents: number
   includedOrgs: number
   overagePerOrgCents: number
@@ -19,11 +20,26 @@ export interface FirmBilling {
 
 export async function getFirmBilling(firmId: string): Promise<FirmBilling | null> {
   const rows = await prisma.$queryRaw<FirmBilling[]>(Prisma.sql`
-    SELECT "id", "plan", "baseFeeCents", "includedOrgs", "overagePerOrgCents",
+    SELECT "id", "plan", "billingCycle", "baseFeeCents", "includedOrgs", "overagePerOrgCents",
            "commissionPct", "stripeConnectAccountId", "connectStatus"
     FROM "Firm" WHERE "id" = ${firmId} LIMIT 1
   `)
   return rows[0] ?? null
+}
+
+/** Set the firm's billing cycle (monthly | annual). */
+export async function setFirmCycle(firmId: string, cycle: BillingCycle): Promise<void> {
+  await prisma.$executeRaw(Prisma.sql`
+    UPDATE "Firm" SET "billingCycle" = ${cycle}, "updatedAt" = now() WHERE "id" = ${firmId}
+  `)
+}
+
+/** Flip Connect status by account id (used by the Stripe Connect webhook). */
+export async function setConnectStatusByAccount(accountId: string, status: string): Promise<void> {
+  await prisma.$executeRaw(Prisma.sql`
+    UPDATE "Firm" SET "connectStatus" = ${status}, "updatedAt" = now()
+    WHERE "stripeConnectAccountId" = ${accountId}
+  `)
 }
 
 /** Switch a firm to a plan, writing the plan's canonical pricing onto the firm. */
