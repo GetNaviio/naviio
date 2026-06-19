@@ -8,8 +8,9 @@ import { withOwner } from '@/lib/api/with-org'
 import { getOrgBilling } from '@/lib/billing/org-billing-store'
 import { isPlanBillingConfigured, priceIdForPlan, createPlanCheckout } from '@/lib/billing/stripe-plans'
 
+// CFO Suite is sold via the firm plans (Clients page), not self-serve here.
 const Schema = z.object({
-  plan: z.enum(['STARTER', 'GROWTH', 'PRO', 'CFO']),
+  plan: z.enum(['STARTER', 'GROWTH', 'PRO']),
   cycle: z.enum(['monthly', 'annual']).default('monthly'),
 })
 

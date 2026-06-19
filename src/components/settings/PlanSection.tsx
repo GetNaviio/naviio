@@ -6,8 +6,9 @@
  * Checkout. Owner-only actions; confirms a returned Checkout session.
  */
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import Card from '@/components/ui/Card'
-import { Check } from 'lucide-react'
+import { Check, Users, ArrowRight } from 'lucide-react'
 
 type Cycle = 'monthly' | 'annual'
 interface PlanDef {
@@ -24,6 +25,8 @@ const ORDER = ['STARTER', 'GROWTH', 'PRO', 'CFO']
 export default function PlanSection() {
   const [plans, setPlans] = useState<PlanDef[]>([])
   const [current, setCurrent] = useState<string>('STARTER')
+  const [currentLabel, setCurrentLabel] = useState<string>('Starter')
+  const [isFirmPlan, setIsFirmPlan] = useState(false)
   const [status, setStatus] = useState<string>('none')
   const [isOwner, setIsOwner] = useState(false)
   const [configured, setConfigured] = useState(false)
@@ -36,6 +39,8 @@ export default function PlanSection() {
     const data = await res.json()
     setPlans(data.plans ?? [])
     setCurrent(data.currentPlan ?? 'STARTER')
+    setCurrentLabel(data.currentPlanLabel ?? 'Starter')
+    setIsFirmPlan(data.isFirmPlan ?? false)
     setStatus(data.subscriptionStatus ?? 'none')
     setIsOwner(data.isOwner ?? false)
     setConfigured((data.billingConfigured && data.pricesConfigured) ?? false)
@@ -93,8 +98,22 @@ export default function PlanSection() {
       <p className="text-xs mb-4" style={{ color: status === 'past_due' || status === 'unpaid' ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
         {status === 'past_due' || status === 'unpaid'
           ? 'Payment past due — update your card to keep your plan.'
-          : `You're on the ${plans.find((p) => p.id === current)?.label ?? current} plan.`}
+          : `You're on the ${currentLabel} plan.`}
       </p>
+
+      {isFirmPlan && (
+        <Link
+          href="/clients"
+          className="flex items-center justify-between rounded-lg border p-3 mb-4"
+          style={{ borderColor: 'var(--color-info)', backgroundColor: 'rgba(59,130,246,0.06)' }}
+        >
+          <span className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>
+            <Users size={15} style={{ color: 'var(--color-info)' }} />
+            You&apos;re on the CFO Suite — manage your firm, clients &amp; billing under Clients.
+          </span>
+          <ArrowRight size={15} style={{ color: 'var(--color-info)' }} />
+        </Link>
+      )}
 
       {!configured && (
         <p className="text-[11px] mb-3" style={{ color: 'var(--color-text-secondary)' }}>
@@ -142,6 +161,20 @@ export default function PlanSection() {
           )
         })}
       </div>
+
+      {!isFirmPlan && (
+        <Link
+          href="/clients"
+          className="flex items-center justify-between rounded-lg border p-3 mt-3"
+          style={{ borderColor: 'var(--color-surface-border)' }}
+        >
+          <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+            <Users size={14} />
+            Managing multiple clients as a fractional CFO? See the white-label firm plans.
+          </span>
+          <ArrowRight size={14} style={{ color: 'var(--color-info)' }} />
+        </Link>
+      )}
     </Card>
   )
 }

@@ -4,14 +4,15 @@
 import { withOrg } from '@/lib/api/with-org'
 import { getOrgRole } from '@/lib/org'
 import { getOrgBilling } from '@/lib/billing/org-billing-store'
-import { PLAN_PRICING } from '@/lib/billing/plans'
+import { SELF_SERVE_PLANS, PLAN_BY_ID } from '@/lib/billing/plans'
 import { isPlanBillingConfigured, arePlanPricesConfigured } from '@/lib/billing/stripe-plans'
 
 export const GET = withOrg(async (_request, { user, orgId }) => {
   const billing = await getOrgBilling(orgId)
   const isOwner = (await getOrgRole(orgId, user.id)) === 'OWNER'
+  const current = billing?.plan ?? 'STARTER'
   return Response.json({
-    plans: PLAN_PRICING.map((p) => ({
+    plans: SELF_SERVE_PLANS.map((p) => ({
       id: p.id,
       label: p.label,
       monthlyCents: p.monthlyCents,
@@ -19,7 +20,10 @@ export const GET = withOrg(async (_request, { user, orgId }) => {
       seats: Number.isFinite(p.seats) ? p.seats : null,
       blurb: p.blurb,
     })),
-    currentPlan: billing?.plan ?? 'STARTER',
+    currentPlan: current,
+    currentPlanLabel: PLAN_BY_ID[current]?.label ?? current,
+    // True when the org is on the CFO/firm tier (managed via the Clients page).
+    isFirmPlan: current === 'CFO',
     subscriptionStatus: billing?.subscriptionStatus ?? 'none',
     isOwner,
     billingConfigured: isPlanBillingConfigured(),

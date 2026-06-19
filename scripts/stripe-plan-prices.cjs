@@ -30,11 +30,12 @@ const stripe = require('stripe')(KEY, { apiVersion: '2026-04-22.dahlia' })
 const ANNUAL_MULT = 10
 
 // [planId, label, monthlyCents]
+// Self-serve plans only. CFO Suite is sold via the firm plans
+// (scripts/stripe-firm-prices.cjs), so it's intentionally not duplicated here.
 const PLANS = [
   ['STARTER', 'Naviio Starter', 4900],
   ['GROWTH', 'Naviio Growth', 14900],
   ['PRO', 'Naviio Pro', 39900],
-  ['CFO', 'Naviio CFO Suite', 79900],
 ]
 
 async function ensureProduct(planId, name) {

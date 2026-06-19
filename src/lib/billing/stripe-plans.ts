@@ -18,7 +18,9 @@ function stripe(): Stripe {
   return new Stripe(key, { apiVersion: '2026-04-22.dahlia' })
 }
 
-const PLAN_IDS: Plan[] = ['STARTER', 'GROWTH', 'PRO', 'CFO']
+// Self-serve plans only. CFO Suite is sold via the fractional-CFO firm plans
+// (lib/firm/*), so it has no individual price here — avoids a duplicate $799 SKU.
+const PLAN_IDS: Plan[] = ['STARTER', 'GROWTH', 'PRO']
 
 /** Env var name for a plan/cycle price, e.g. STRIPE_PLAN_PRICE_GROWTH_ANNUAL. */
 function envName(plan: Plan, cycle: BillingCycle): string {
