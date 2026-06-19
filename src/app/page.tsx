@@ -538,20 +538,21 @@ export default function LandingPage() {
         </div>
         <div className="pricing-grid reveal">
           {[
-            { tier: 'Starter', price: '$49', desc: 'For early-stage founders and solopreneurs getting started.', features: ['2 integrations','Real-time P&L','Cash dashboard','Basic KPIs','1 user'], featured: false },
-            { tier: 'Growth',  price: '$149', desc: 'For SMBs between $1M–$5M revenue who need the full picture.', features: ['5 integrations','Full dashboard','Forecasting engine','AI categorization','3 users'], featured: true },
-            { tier: 'Pro',     price: '$349', desc: 'For $5M–$20M businesses that need scenario modeling and board reports.', features: ['Unlimited integrations','Board reports export','Scenario modeling','API access','10 users'], featured: false },
-            { tier: 'CFO Suite', price: '$799', desc: 'For fractional CFOs managing multiple clients from one platform.', features: ['Multi-entity','White-label','Client portal','Priority support','Unlimited users'], featured: false },
-          ].map(({ tier, price, desc, features, featured }) => (
+            { tier: 'Starter', price: '$49', note: '', desc: 'For early-stage founders and solopreneurs getting started.', features: ['2 integrations','Real-time P&L','Cash dashboard','Basic KPIs','1 user'], featured: false, cta: 'Join the waitlist' },
+            { tier: 'Growth',  price: '$149', note: '', desc: 'For SMBs between $1M–$5M revenue who need the full picture.', features: ['5 integrations','Full dashboard','Forecasting engine','AI categorization','3 users'], featured: true, cta: 'Join the waitlist' },
+            { tier: 'Pro',     price: '$349', note: '', desc: 'For $5M–$20M businesses that need scenario modeling and board reports.', features: ['Unlimited integrations','Board reports export','Scenario modeling','API access','10 users'], featured: false, cta: 'Join the waitlist' },
+            { tier: 'For fractional CFOs', price: '$799', note: 'or $997 to resell to clients — Naviio takes 15%', desc: 'Run your whole client book, white-labeled. A separate track for CFO & accounting firms.', features: ['Up to 10 client orgs','White-label portal & reports','Client roster & switching','Advisor access controls','SaaS resale — keep 85%'], featured: false, cta: 'Talk to us' },
+          ].map(({ tier, price, note, desc, features, featured, cta }) => (
             <div className={`pricing-card${featured ? ' featured' : ''}`} key={tier}>
               {featured && <div className="pricing-badge">Most popular</div>}
               <div className="pricing-tier">{tier}</div>
               <div className="pricing-price">{price}<span>/mo</span></div>
+              {note ? <div className="pricing-desc" style={{ marginTop: '-0.25rem', color: 'var(--accent2)' }}>{note}</div> : null}
               <div className="pricing-desc">{desc}</div>
               <ul className="pricing-features">
                 {features.map(f => <li key={f}><span className="check">✓</span>{f}</li>)}
               </ul>
-              <a href="#waitlist" className="pricing-btn">Join the waitlist</a>
+              <a href="#waitlist" className="pricing-btn">{cta}</a>
             </div>
           ))}
         </div>
