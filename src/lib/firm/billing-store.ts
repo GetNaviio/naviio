@@ -14,6 +14,8 @@ export interface FirmBilling {
   includedOrgs: number
   overagePerOrgCents: number
   commissionPct: number
+  stripeCustomerId: string | null
+  stripeSubscriptionId: string | null
   stripeConnectAccountId: string | null
   connectStatus: string
 }
@@ -21,10 +23,18 @@ export interface FirmBilling {
 export async function getFirmBilling(firmId: string): Promise<FirmBilling | null> {
   const rows = await prisma.$queryRaw<FirmBilling[]>(Prisma.sql`
     SELECT "id", "plan", "billingCycle", "baseFeeCents", "includedOrgs", "overagePerOrgCents",
-           "commissionPct", "stripeConnectAccountId", "connectStatus"
+           "commissionPct", "stripeCustomerId", "stripeSubscriptionId", "stripeConnectAccountId", "connectStatus"
     FROM "Firm" WHERE "id" = ${firmId} LIMIT 1
   `)
   return rows[0] ?? null
+}
+
+/** Persist the firm's platform-subscription Stripe identifiers (after checkout). */
+export async function setFirmStripeIds(firmId: string, customerId: string, subscriptionId: string): Promise<void> {
+  await prisma.$executeRaw(Prisma.sql`
+    UPDATE "Firm" SET "stripeCustomerId" = ${customerId}, "stripeSubscriptionId" = ${subscriptionId}, "updatedAt" = now()
+    WHERE "id" = ${firmId}
+  `)
 }
 
 /** Set the firm's billing cycle (monthly | annual). */

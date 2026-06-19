@@ -9,7 +9,7 @@ import { withAuth } from '@/lib/api/with-org'
 import { getFirmForOwner, getOrCreateFirm } from '@/lib/firm/firm'
 import { getFirmBilling, setFirmPlan, setFirmCycle, countFirmOrgs } from '@/lib/firm/billing-store'
 import { PLANS, computeFirmBill, type FirmPlan, type BillingCycle } from '@/lib/firm/billing'
-import { isBillingConfigured } from '@/lib/firm/stripe-billing'
+import { isBillingConfigured, arePricesConfigured, priceIdFor, syncFirmSubscriptionQuantity } from '@/lib/firm/stripe-billing'
 
 export const GET = withAuth(async (_request, { user }) => {
   const firm = await getFirmForOwner(user.id)
@@ -27,6 +27,12 @@ export const GET = withAuth(async (_request, { user }) => {
   const [billing, orgCount] = await Promise.all([getFirmBilling(firm.id), countFirmOrgs(firm.id)])
   const plan = (billing?.plan ?? 'white_label') as FirmPlan
   const cycle = (billing?.billingCycle ?? 'monthly') as BillingCycle
+
+  // Keep the subscription quantity (= org count) current as the roster changes.
+  if (billing?.stripeSubscriptionId && isBillingConfigured()) {
+    await syncFirmSubscriptionQuantity(billing.stripeSubscriptionId, orgCount).catch(() => {})
+  }
+
   return Response.json({
     firm: { id: firm.id, name: firm.name },
     plans,
@@ -36,6 +42,9 @@ export const GET = withAuth(async (_request, { user }) => {
     bill: computeFirmBill(plan, orgCount, cycle),
     connectStatus: billing?.connectStatus ?? 'none',
     billingConfigured: isBillingConfigured(),
+    pricesConfigured: arePricesConfigured(),
+    priceConfiguredForPlan: !!priceIdFor(plan, cycle),
+    subscriptionActive: !!billing?.stripeSubscriptionId,
   })
 })
 

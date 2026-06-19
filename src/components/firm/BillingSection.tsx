@@ -35,6 +35,8 @@ export default function BillingSection() {
   const [bill, setBill] = useState<Bill | null>(null)
   const [connectStatus, setConnectStatus] = useState<string>('none')
   const [billingConfigured, setBillingConfigured] = useState(true)
+  const [priceConfigured, setPriceConfigured] = useState(false)
+  const [subscriptionActive, setSubscriptionActive] = useState(false)
   const [cycle, setCycle] = useState<Cycle>('monthly')
   const [busy, setBusy] = useState(false)
 
@@ -47,12 +49,37 @@ export default function BillingSection() {
     setBill(data.bill ?? null)
     setConnectStatus(data.connectStatus ?? 'none')
     setBillingConfigured(data.billingConfigured ?? false)
+    setPriceConfigured(data.priceConfiguredForPlan ?? false)
+    setSubscriptionActive(data.subscriptionActive ?? false)
     setCycle(data.cycle ?? 'monthly')
   }, [])
 
   useEffect(() => {
-    load()
+    // Confirm a returned Checkout session (webhook-independent), then clean the URL.
+    const params = new URLSearchParams(window.location.search)
+    const sessionId = params.get('session_id')
+    if (params.get('billing') === 'active' && sessionId) {
+      fetch(`/api/firm/billing/confirm?session_id=${encodeURIComponent(sessionId)}`)
+        .catch(() => {})
+        .finally(() => {
+          window.history.replaceState(null, '', '/clients')
+          load()
+        })
+    } else {
+      load()
+    }
   }, [load])
+
+  async function activateBilling() {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/firm/billing/subscribe', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok && data.url) window.location.href = data.url
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function patch(payload: { plan?: PlanDef['id']; cycle?: Cycle }) {
     setBusy(true)
@@ -173,6 +200,36 @@ export default function BillingSection() {
           )
         })}
       </div>
+
+      {/* Activate / status of the platform subscription */}
+      {current && (
+        <div className="mt-4 rounded-lg border p-3 flex items-center justify-between" style={{ borderColor: 'var(--color-surface-border)' }}>
+          <div>
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Platform subscription</p>
+            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+              {subscriptionActive
+                ? `Active — ${bill ? usd(bill.platformDueCents) : ''}/${cycle === 'annual' ? 'yr' : 'mo'}, adjusts automatically as you add clients.`
+                : priceConfigured
+                  ? 'Add a payment method to start your subscription.'
+                  : 'Pricing isn’t configured on the server yet.'}
+            </p>
+          </div>
+          {subscriptionActive ? (
+            <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--color-success)' }}>
+              <Check size={13} /> Active
+            </span>
+          ) : (
+            <button
+              onClick={activateBilling}
+              disabled={busy || !billingConfigured || !priceConfigured}
+              className="text-sm font-medium px-3 py-2 rounded-lg text-white whitespace-nowrap"
+              style={{ backgroundColor: 'var(--color-info)', opacity: busy || !billingConfigured || !priceConfigured ? 0.6 : 1 }}
+            >
+              Activate billing
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Connect onboarding for the resale plan */}
       {current === 'white_label_saas' && (

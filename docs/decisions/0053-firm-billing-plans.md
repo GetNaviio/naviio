@@ -54,11 +54,25 @@ Two firm plans, canonical values in `src/lib/firm/billing.ts`:
 - Routes: `/api/firm/billing` (GET summary / PUT select), `/api/firm/connect`
   (onboarding + status). UI: `BillingSection` on the Clients page.
 
+## Platform subscription (implemented)
+- The base + overage is a single **graduated tiered Stripe price** per plan/cycle,
+  keyed on the subscription **quantity = client-org count**: tier 1 is a flat base
+  covering the included orgs, tier 2 is $59/org beyond. Stripe then computes
+  base + overage automatically, matching `computeFirmBill`.
+- `scripts/stripe-firm-prices.cjs` creates the 4 prices idempotently (by lookup_key)
+  and prints the env lines: `STRIPE_FIRM_PRICE_WL_MONTHLY/_ANNUAL`,
+  `STRIPE_FIRM_PRICE_WLSAAS_MONTHLY/_ANNUAL`.
+- Activation: `POST /api/firm/billing/subscribe` → Stripe Checkout (subscription
+  mode, qty = org count); on return `GET /api/firm/billing/confirm` persists the
+  customer + subscription ids (webhook-independent, mirrors credits). The billing
+  GET best-effort syncs the subscription quantity to the live org count so overage
+  tracks the roster.
+
 ## Follow-ups / what's not done
-- The recurring platform subscription needs Stripe **Price IDs** for the base and
-  overage line items; client subscriptions and the application-fee flow need
-  **Stripe Connect enabled** on the platform account. Plan selection and entitlement
-  (included orgs, overage, commission) are live now; live charging activates when
-  those keys/capabilities are configured.
-- Optional later: an annual option, and a Connect webhook to flip `connectStatus`
-  to `enabled` automatically (currently refreshed on demand via GET `/api/firm/connect`).
+- Run `node scripts/stripe-firm-prices.cjs` once per Stripe mode (test, then live)
+  and set the 4 price-id env vars; enable **Stripe Connect** for the Option-2
+  application-fee flow.
+- Annual option and the Connect auto-status webhook are now DONE (0053 superseded
+  on those points by the firm-billing-cycle migration and `/api/firm/connect/webhook`).
+- Optional later: a billing webhook (`customer.subscription.updated`/`deleted`) to
+  reflect cancellations/past-due, and proration tuning on quantity changes.
