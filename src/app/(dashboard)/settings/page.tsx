@@ -9,6 +9,7 @@ import PortalSection from '@/components/settings/PortalSection'
 import BrandingSection from '@/components/settings/BrandingSection'
 import AdvisorAccessSection from '@/components/settings/AdvisorAccessSection'
 import CreditsSection from '@/components/settings/CreditsSection'
+import PlanSection from '@/components/settings/PlanSection'
 import { Shield, ShieldCheck, ShieldOff, Smartphone, Copy, CheckCircle, AlertTriangle, KeyRound, Trash2, Building2, Wallet, Share2, UserCog } from 'lucide-react'
 
 type SettingsTab = 'organization' | 'billing' | 'sharing' | 'security' | 'account'
@@ -216,7 +217,12 @@ export default function SettingsPage() {
         {tab === 'organization' && <TeamSection />}
 
         {/* ── Billing & credits ── */}
-        {tab === 'billing' && <CreditsSection />}
+        {tab === 'billing' && (
+          <>
+            <PlanSection />
+            <CreditsSection />
+          </>
+        )}
 
         {/* ── Sharing: client portal + white-label branding ── */}
         {tab === 'sharing' && (

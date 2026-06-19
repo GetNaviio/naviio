@@ -167,6 +167,7 @@ model Organization {
   plan                 Plan     @default(STARTER)
   stripeCustomerId     String?
   stripeSubscriptionId String?
+  subscriptionStatus   String   @default("none") // none | active | trialing | past_due | canceled | unpaid
   // White-label (CFO Suite): a client entity's own brand on the portal and
   // exported reports. logoUrl is an https image URL; brandColor a #hex accent.
   // hideNaviioBranding minimizes the "Powered by Navi" mark where allowed.
