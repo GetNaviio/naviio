@@ -32,6 +32,7 @@ export default function PlanSection() {
   const [currentLabel, setCurrentLabel] = useState<string>('Starter')
   const [entityCount, setEntityCount] = useState(1)
   const [recommended, setRecommended] = useState<string>('PRO')
+  const [isFirm, setIsFirm] = useState(false)
   const [status, setStatus] = useState<string>('none')
   const [isOwner, setIsOwner] = useState(false)
   const [configured, setConfigured] = useState(false)
@@ -47,6 +48,7 @@ export default function PlanSection() {
     setCurrentLabel(data.currentPlanLabel ?? 'Starter')
     setEntityCount(data.entityCount ?? 1)
     setRecommended(data.recommendedPlan ?? 'PRO')
+    setIsFirm(data.isFirm ?? false)
     setStatus(data.subscriptionStatus ?? 'none')
     setIsOwner(data.isOwner ?? false)
     setConfigured((data.billingConfigured && data.pricesConfigured) ?? false)
@@ -185,17 +187,21 @@ export default function PlanSection() {
         })}
       </div>
 
-      <Link
-        href="/clients"
-        className="flex items-center justify-between rounded-lg border p-3 mt-3"
-        style={{ borderColor: 'var(--color-surface-border)' }}
-      >
-        <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-          <Users size={14} />
-          A fractional CFO managing other businesses? See the white-label firm plans.
-        </span>
-        <ArrowRight size={14} style={{ color: 'var(--color-info)' }} />
-      </Link>
+      {/* Firm-plan promo only for users already in the firm context — never on
+          plain individual accounts. */}
+      {isFirm && (
+        <Link
+          href="/clients"
+          className="flex items-center justify-between rounded-lg border p-3 mt-3"
+          style={{ borderColor: 'var(--color-surface-border)' }}
+        >
+          <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+            <Users size={14} />
+            Manage your firm, clients &amp; white-label billing under Clients.
+          </span>
+          <ArrowRight size={14} style={{ color: 'var(--color-info)' }} />
+        </Link>
+      )}
     </Card>
   )
 }

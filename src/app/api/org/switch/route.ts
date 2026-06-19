@@ -10,6 +10,7 @@ import { getDefaultOrgId } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isOrgMember } from '@/lib/org'
 import { getRole, logAccess } from '@/lib/firm/access'
+import { isFirmUser } from '@/lib/firm/firm'
 
 export const GET = withAuth(async (_request, { user }) => {
   const [activeOrgId, owned, joined] = await Promise.all([
@@ -27,7 +28,9 @@ export const GET = withAuth(async (_request, { user }) => {
   // Multi-entity is a Pro+ capability: owning a Pro or CFO org unlocks creating
   // additional entities (same rule /api/org/create enforces).
   const canCreate = owned.some((o) => o.plan === 'PRO' || o.plan === 'CFO')
-  return Response.json({ orgs, canCreate })
+  // Surface the fractional-CFO/firm UI (Clients tab) only for firm-context users.
+  const isFirm = await isFirmUser(user.id)
+  return Response.json({ orgs, canCreate, isFirm })
 })
 
 const SwitchSchema = z.object({ orgId: z.string().min(1).max(64) })

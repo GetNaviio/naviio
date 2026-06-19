@@ -4,6 +4,7 @@
  */
 import { withOrg } from '@/lib/api/with-org'
 import { getOrgRole } from '@/lib/org'
+import { isFirmUser } from '@/lib/firm/firm'
 import { getOrgBilling, countOwnedOrgs, getOwnerBillingOrg } from '@/lib/billing/org-billing-store'
 import { SELF_SERVE_PLANS, PLAN_BY_ID, cheaperPlanForEntities, planCostForEntities } from '@/lib/billing/plans'
 import {
@@ -13,11 +14,12 @@ import {
 } from '@/lib/billing/stripe-plans'
 
 export const GET = withOrg(async (_request, { user, orgId }) => {
-  const [billing, isOwnerRole, entityCount, anchor] = await Promise.all([
+  const [billing, isOwnerRole, entityCount, anchor, isFirm] = await Promise.all([
     getOrgBilling(orgId),
     getOrgRole(orgId, user.id),
     countOwnedOrgs(user.id),
     getOwnerBillingOrg(user.id),
+    isFirmUser(user.id),
   ])
   const isOwner = isOwnerRole === 'OWNER'
   const current = billing?.plan ?? 'STARTER'
@@ -47,6 +49,7 @@ export const GET = withOrg(async (_request, { user, orgId }) => {
     currentBillCents: planCostForEntities(current, entityCount),
     subscriptionStatus: billing?.subscriptionStatus ?? 'none',
     isOwner,
+    isFirm,
     billingConfigured: isPlanBillingConfigured(),
     pricesConfigured: arePlanPricesConfigured(),
   })

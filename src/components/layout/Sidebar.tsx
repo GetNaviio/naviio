@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -10,6 +11,8 @@ import {
 import { useTheme } from '@/components/layout/ThemeContext'
 import OrgSwitcher from '@/components/layout/OrgSwitcher'
 
+// `firmOnly` items only show for fractional-CFO / advisor accounts; plain
+// individual accounts never see the Clients tab.
 const nav = [
   { href: '/dashboard',    label: 'Overview',      icon: LayoutDashboard },
   { href: '/pl',           label: 'P&L Statement', icon: TrendingUp },
@@ -21,7 +24,7 @@ const nav = [
   { href: '/kpis',         label: 'KPIs',          icon: Target },
   { href: '/cpa',          label: 'CPA / Tax',     icon: Calculator },
   { href: '/documents',    label: 'Documents',     icon: FolderOpen },
-  { href: '/clients',      label: 'Clients',       icon: Users },
+  { href: '/clients',      label: 'Clients',       icon: Users, firmOnly: true },
   { href: '/integrations', label: 'Integrations',  icon: Plug },
   { href: '/alerts',       label: 'Alerts',        icon: Bell, badge: 3 },
   { href: '/settings',     label: 'Settings',      icon: Settings },
@@ -35,6 +38,16 @@ interface SidebarProps {
 export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { theme } = useTheme()
+  const [isFirm, setIsFirm] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/org/switch')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setIsFirm(!!d?.isFirm))
+      .catch(() => {})
+  }, [])
+
+  const items = nav.filter((n) => !n.firmOnly || isFirm)
 
   return (
     <aside
@@ -70,7 +83,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
           Financial Dashboard
         </p>
-        {nav.map(({ href, label, icon: Icon, badge }) => {
+        {items.map(({ href, label, icon: Icon, badge }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
           return (
             <Link

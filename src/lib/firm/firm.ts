@@ -18,6 +18,22 @@ export interface Firm {
   brandColor: string | null
 }
 
+/**
+ * Whether to surface the fractional-CFO/firm UI (Clients tab, firm-plan promo) for
+ * this user. True only if they actually operate in the firm context: they own a
+ * Firm, or they're an ADVISOR on someone else's org. Plain individual accounts get
+ * none of the firm surface.
+ */
+export async function isFirmUser(userId: string): Promise<boolean> {
+  const rows = await prisma.$queryRaw<Array<{ ok: boolean }>>(Prisma.sql`
+    SELECT (
+      EXISTS (SELECT 1 FROM "Firm" WHERE "ownerUserId" = ${userId})
+      OR EXISTS (SELECT 1 FROM "OrgMember" WHERE "userId" = ${userId} AND "role"::text = 'ADVISOR')
+    ) AS ok
+  `)
+  return !!rows[0]?.ok
+}
+
 /** The firm this user owns, or null. */
 export async function getFirmForOwner(userId: string): Promise<Firm | null> {
   const rows = await prisma.$queryRaw<Firm[]>(Prisma.sql`
