@@ -54,10 +54,10 @@ export default function BrandMenu() {
     <div ref={rootRef} className="relative lg:hidden flex-shrink-0">
       <button onClick={() => setOpen((v) => !v)} aria-label="Menu" aria-expanded={open} className="flex items-center -ml-1">
         <img
-          src={theme === 'light' ? '/naviio-icon-light.png' : '/naviio-icon-dark.png'}
+          src="/naviio-icon-dark.png"
           alt="Naviio menu"
-          width={theme === 'light' ? 52 : 40}
-          height={theme === 'light' ? 52 : 40}
+          width={40}
+          height={40}
           className="rounded-lg object-contain"
           onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo-icon.svg' }}
         />
