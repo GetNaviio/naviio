@@ -7,6 +7,7 @@ import Card from '@/components/ui/Card'
 import TeamSection from '@/components/settings/TeamSection'
 import PortalSection from '@/components/settings/PortalSection'
 import BrandingSection from '@/components/settings/BrandingSection'
+import AdvisorAccessSection from '@/components/settings/AdvisorAccessSection'
 import CreditsSection from '@/components/settings/CreditsSection'
 import { Shield, ShieldCheck, ShieldOff, Smartphone, Copy, CheckCircle, AlertTriangle, KeyRound, Trash2, Building2, Wallet, Share2, UserCog } from 'lucide-react'
 
@@ -220,6 +221,7 @@ export default function SettingsPage() {
         {/* ── Sharing: client portal + white-label branding ── */}
         {tab === 'sharing' && (
           <>
+            <AdvisorAccessSection />
             <PortalSection />
             <BrandingSection />
           </>

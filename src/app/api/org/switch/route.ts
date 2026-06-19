@@ -9,6 +9,7 @@ import { withAuth } from '@/lib/api/with-org'
 import { getDefaultOrgId } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isOrgMember } from '@/lib/org'
+import { getRole, logAccess } from '@/lib/firm/access'
 
 export const GET = withAuth(async (_request, { user }) => {
   const [activeOrgId, owned, joined] = await Promise.all([
@@ -40,5 +41,9 @@ export const POST = withAuth(async (request, { user }) => {
     return Response.json({ error: 'You are not a member of that organization' }, { status: 403 })
   }
   await prisma.user.update({ where: { id: user.id }, data: { activeOrgId: parsed.data.orgId } })
+  // Audit advisors opening a client workspace (transparency trail).
+  if ((await getRole(parsed.data.orgId, user.id)) === 'ADVISOR') {
+    await logAccess(parsed.data.orgId, user.id, 'switch', 'advisor opened client workspace')
+  }
   return Response.json({ ok: true })
 })

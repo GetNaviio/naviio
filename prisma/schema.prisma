@@ -65,6 +65,10 @@ enum ExpenseClass {
 enum OrgRole {
   OWNER
   MEMBER
+  // A fractional CFO / CPA / financial professional with access to a client's
+  // org. Can view and categorize, but not manage billing, disconnect
+  // integrations, manage members, or delete the org (see lib/firm/access.ts).
+  ADVISOR
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -169,10 +173,16 @@ model Organization {
   brandLogoUrl         String?
   brandColor           String?
   hideNaviioBranding   Boolean  @default(false)
+  // The fractional-CFO firm that manages this client org, if any. Set when a
+  // client accepts a firm's invite; the firm grouping drives the CFO's client
+  // roster, white-label, and (later) firm-level billing. Access control still
+  // lives in OrgMember — the firm link is organizational, not an auth grant.
+  firmId               String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
   owner             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firm              Firm?               @relation(fields: [firmId], references: [id])
   integrations      Integration[]
   transactions      Transaction[]
   categories        Category[]
@@ -292,6 +302,124 @@ model Invitation {
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@unique([orgId, email])
+  @@index([orgId])
+}
+
+// ─── Fractional-CFO firm (white-label / multi-client) ───────────────────────────
+
+/**
+ * A fractional CFO / CPA practice. The firm owner (ownerUserId) manages a roster
+ * of client Organizations. Access to each client is still granted per-org via an
+ * OrgMember row with role ADVISOR — the Firm is the organizational/branding/billing
+ * grouping on top, never an implicit auth grant. All new-feature reads/writes go
+ * through raw SQL helpers (lib/firm/*), so this model does not require a Prisma
+ * client regeneration to be used.
+ */
+model Firm {
+  id           String   @id @default(cuid())
+  ownerUserId  String   // the CFO who owns the practice (loose ref; no cascade)
+  name         String
+  brandLogoUrl String?  // white-label: https logo URL shown on the client portal
+  brandColor   String?  // white-label: #hex accent
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  clients       Organization[]
+  clientInvites ClientInvite[]
+
+  @@index([ownerUserId])
+}
+
+/**
+ * A firm's invitation for a prospective client to join Naviio under that firm.
+ * The client always creates/owns their OWN login and org (client-led model): on
+ * accept, we ensure the client has their org, add the inviting advisor as an
+ * ADVISOR member, set Organization.firmId, and record the client's explicit
+ * consent (acceptedAt + consentScopes). Only a SHA-256 hash of the token is
+ * stored; the raw link is shown once at creation.
+ */
+model ClientInvite {
+  id            String    @id @default(cuid())
+  firmId        String
+  advisorUserId String    // who sent it (loose ref)
+  clientEmail   String
+  clientName    String?
+  tokenHash     String    @unique
+  status        String    @default("pending") // pending | accepted | revoked | expired
+  consentScopes String    @default("financials") // CSV of what the advisor may see
+  orgId         String?   // the client's org, filled on accept
+  expiresAt     DateTime
+  acceptedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@index([firmId])
+  @@index([clientEmail])
+}
+
+/**
+ * Lightweight access audit: who (actorUserId) touched which client org (orgId)
+ * and what they did (action). Powers the advisor-access transparency trail the
+ * client and SOC 2 reviewers expect. Append-only; no money math stored.
+ */
+model AccessLog {
+  id          String   @id @default(cuid())
+  orgId       String
+  actorUserId String
+  action      String   // 'switch' | 'view' | 'export' | 'reclassify' | 'add_client' | ...
+  detail      String?
+  createdAt   DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([actorUserId])
+}
+
+// ─── External document sharing (files live OUTSIDE Naviio) ───────────────────────
+
+/**
+ * An OAuth connection to an external file-sharing platform (Dropbox, Google
+ * Drive). Documents themselves NEVER live in Naviio — only the connection and
+ * pointers (DocumentRef) do. Tokens are app-encrypted with lib/crypto before
+ * being written via the raw-SQL helpers in lib/documents (the Prisma
+ * field-encryption extension only covers the Integration model).
+ */
+model DocumentSource {
+  id           String    @id @default(cuid())
+  orgId        String
+  provider     String    // 'dropbox' | 'google_drive'
+  accessToken  String?   @db.Text // app-encrypted (encv1:...)
+  refreshToken String?   @db.Text // app-encrypted
+  accountLabel String?   // the connected account's display name/email
+  rootPath     String    @default("") // optional folder scope
+  expiresAt    DateTime?
+  status       String    @default("connected") // connected | error | disconnected
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([orgId, provider])
+  @@index([orgId])
+}
+
+/**
+ * A pointer to a file that lives in the external platform and has been shared
+ * into this client's workspace (by the client or the advisor). Stores metadata
+ * and an outbound link ONLY — never the file contents.
+ */
+model DocumentRef {
+  id             String    @id @default(cuid())
+  orgId          String
+  provider       String    // 'dropbox' | 'google_drive'
+  externalId     String    // provider file id / path_lower
+  name           String
+  path           String?
+  url            String?   // outbound link to open the file in the external platform
+  sizeBytes      Int?
+  sharedByUserId String?
+  modifiedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([orgId, provider, externalId])
   @@index([orgId])
 }
 

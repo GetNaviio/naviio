@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, TrendingUp, Waves, BarChart3,
   CreditCard, Target, Plug, Bell, ChevronRight, Calculator, X, Telescope, Settings, LineChart,
+  Users, FolderOpen,
 } from 'lucide-react'
 import { useTheme } from '@/components/layout/ThemeContext'
 import OrgSwitcher from '@/components/layout/OrgSwitcher'
@@ -19,6 +20,8 @@ const nav = [
   { href: '/expenses',     label: 'Expenses',      icon: CreditCard },
   { href: '/kpis',         label: 'KPIs',          icon: Target },
   { href: '/cpa',          label: 'CPA / Tax',     icon: Calculator },
+  { href: '/documents',    label: 'Documents',     icon: FolderOpen },
+  { href: '/clients',      label: 'Clients',       icon: Users },
   { href: '/integrations', label: 'Integrations',  icon: Plug },
   { href: '/alerts',       label: 'Alerts',        icon: Bell, badge: 3 },
   { href: '/settings',     label: 'Settings',      icon: Settings },
