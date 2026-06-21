@@ -50,13 +50,8 @@ export async function POST(request: Request) {
     // axios response so the real cause shows up in the server log.
     const detail = errMsg(err)
     console.error('Plaid create-link-token error:', detail)
-    // In non-production, return the detail so it's visible in the browser
-    // Network tab / UI. Never expose it in production.
-    return Response.json(
-      process.env.NODE_ENV === 'production'
-        ? { error: 'Failed to create link token' }
-        : { error: 'Failed to create link token', detail },
-      { status: 500 },
-    )
+    // TEMP DEBUG: surface the detail in all environments so the cause is visible
+    // in the browser. Revert to production-gating once the local issue is fixed.
+    return Response.json({ error: 'Failed to create link token', detail }, { status: 500 })
   }
 }
