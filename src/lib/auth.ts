@@ -82,14 +82,22 @@ export function verifyPreAuthToken(token: string): { userId: string; email: stri
 // gate it this way; the session + pre-auth headers must match.
 const COOKIE_SECURE = process.env.NODE_ENV === 'production' ? '; Secure' : ''
 
+// Optional cookie Domain. Without it, the session cookie is HOST-ONLY: a cookie
+// set on www.naviio.com is NOT sent back to naviio.com (or vice versa), so any
+// apex↔www redirect drops the session and bounces the user back to /login.
+// Set COOKIE_DOMAIN=.naviio.com in production so the cookie spans the apex and
+// all subdomains. Leave it unset locally (localhost can't take a Domain).
+const COOKIE_DOMAIN_VALUE = process.env.COOKIE_DOMAIN || undefined
+const COOKIE_DOMAIN = COOKIE_DOMAIN_VALUE ? `; Domain=${COOKIE_DOMAIN_VALUE}` : ''
+
 /** Set-Cookie header that stores the short-lived pre-auth token. */
 export function makePreAuthCookieHeader(token: string): string {
-  return `${PREAUTH_COOKIE_NAME}=${token}; Path=/; Max-Age=${PREAUTH_DURATION}; HttpOnly; SameSite=Lax${COOKIE_SECURE}`
+  return `${PREAUTH_COOKIE_NAME}=${token}; Path=/; Max-Age=${PREAUTH_DURATION}; HttpOnly; SameSite=Lax${COOKIE_SECURE}${COOKIE_DOMAIN}`
 }
 
 /** Set-Cookie header that immediately clears the pre-auth cookie. */
 export function clearPreAuthCookieHeader(): string {
-  return `${PREAUTH_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${COOKIE_SECURE}`
+  return `${PREAUTH_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${COOKIE_SECURE}${COOKIE_DOMAIN}`
 }
 
 export async function setSessionCookie(token: string) {
@@ -100,17 +108,18 @@ export async function setSessionCookie(token: string) {
     sameSite: 'lax',
     maxAge: SESSION_DURATION,
     path: '/',
+    domain: COOKIE_DOMAIN_VALUE,
   })
 }
 
 /** Raw Set-Cookie header string — use this in route handlers for reliability */
 export function makeSessionCookieHeader(token: string): string {
-  return `${COOKIE_NAME}=${token}; Path=/; Max-Age=${SESSION_DURATION}; HttpOnly; SameSite=Lax${COOKIE_SECURE}`
+  return `${COOKIE_NAME}=${token}; Path=/; Max-Age=${SESSION_DURATION}; HttpOnly; SameSite=Lax${COOKIE_SECURE}${COOKIE_DOMAIN}`
 }
 
 export async function clearSessionCookie() {
   const cookieStore = await cookies()
-  cookieStore.delete(COOKIE_NAME)
+  cookieStore.delete({ name: COOKIE_NAME, domain: COOKIE_DOMAIN_VALUE, path: '/' })
 }
 
 // ─── Session revocation ────────────────────────────────────────────────────────
