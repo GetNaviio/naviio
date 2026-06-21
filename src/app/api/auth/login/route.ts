@@ -112,7 +112,10 @@ export async function POST(request: Request) {
 
     const token = signToken({ userId: user.id, email: user.email })
     return cookieRedirect(token, destination)
-  } catch {
+  } catch (err) {
+    // Log the real cause so it shows up in Vercel function logs (the redirect
+    // only carries a generic 'server' code to the browser).
+    console.error('login route error:', err instanceof Error ? `${err.message}\n${err.stack}` : err)
     return Response.redirect(new URL('/login?error=server', request.url), 302)
   }
 }
