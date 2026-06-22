@@ -43,6 +43,14 @@ describe('mapStripeCharge', () => {
     expect(mapStripeCharge(ORG, INT, charge({ amount: 5000, amount_refunded: 5000 })).amount).toBe(0)
   })
 
+  it('excludes sales tax collected from revenue (pass-through liability)', () => {
+    // $100 charged incl. $8 Stripe Tax → $92 recognized revenue
+    const withTax = charge({ amount: 10000, invoice: { tax: 800 } } as unknown as Partial<Stripe.Charge>)
+    expect(mapStripeCharge(ORG, INT, withTax).amount).toBeCloseTo(92, 5)
+    // no invoice / no tax → full amount is revenue
+    expect(mapStripeCharge(ORG, INT, charge({ amount: 10000 })).amount).toBe(100)
+  })
+
   it('uppercases the currency and defaults to USD', () => {
     expect(mapStripeCharge(ORG, INT, charge({ currency: 'eur' })).currency).toBe('EUR')
     expect(

@@ -16,7 +16,14 @@ export function mapStripeCharge(
   integrationId: string,
   c: Stripe.Charge,
 ): Prisma.TransactionUncheckedCreateInput {
-  const netCents = Math.max((c.amount ?? 0) - (c.amount_refunded ?? 0), 0)
+  // Sales tax collected is a pass-through LIABILITY, not revenue (ASC 606). When
+  // Stripe Tax is used, `charge.amount` includes it, so strip the invoice tax out
+  // of recognized revenue. Capped at the post-refund amount; on partial refunds
+  // the tax reversal is approximate (the remitted tax DEBIT isn't double-counted
+  // because remittances are bank rows, not Stripe rows).
+  const grossCents = Math.max((c.amount ?? 0) - (c.amount_refunded ?? 0), 0)
+  const taxCents = Math.min(invoiceTaxCents(c), grossCents)
+  const netCents = grossCents - taxCents
   const win = recognitionWindow(c)
   return {
     orgId,
@@ -41,14 +48,28 @@ export function mapStripeCharge(
 
 const RECOGNITION_MIN_DAYS = 45 // longer than a month ⇒ spread (annual / quarterly)
 
+/** The expanded invoice on a charge (`expand: ['data.invoice']`), or null. */
+function invoiceOf(c: Stripe.Charge): Stripe.Invoice | null {
+  const inv = (c as unknown as { invoice?: string | Stripe.Invoice | null }).invoice
+  return inv && typeof inv !== 'string' ? inv : null
+}
+
+/** Sales tax (cents) collected on the charge's invoice, 0 when none/unexpanded. */
+function invoiceTaxCents(c: Stripe.Charge): number {
+  const inv = invoiceOf(c)
+  if (!inv) return 0
+  const tax = (inv as unknown as { tax?: number | null }).tax
+  return typeof tax === 'number' && tax > 0 ? tax : 0
+}
+
 /**
  * The service period a subscription charge covers, from the longest invoice line
  * period (`expand: ['data.invoice']`). Returns null for one-time charges, charges
  * with no invoice, or single-month periods — those recognize on the charge date.
  */
 function recognitionWindow(c: Stripe.Charge): { start: Date; end: Date } | null {
-  const inv = (c as unknown as { invoice?: string | Stripe.Invoice | null }).invoice
-  if (!inv || typeof inv === 'string') return null // not expanded / no invoice
+  const inv = invoiceOf(c)
+  if (!inv) return null // not expanded / no invoice
   let best: { s: number; e: number } | null = null
   for (const line of inv.lines?.data ?? []) {
     const p = line.period

@@ -33,8 +33,9 @@ Code-grounded accounting review of the financial engine (cash basis, for startup
 ### Open — P1
 - **P1-1 Loan interest dropped** — loan payments excluded whole (principal correct,
   interest is a real expense). Needs Plaid Liabilities to split. Disclosed today.
-- **P1-3 Sales tax counted as revenue** — `mapStripeCharge` books `amount` incl.
-  Stripe Tax; tax is a pass-through liability. Subtract tax; exclude remittances.
+- ✅ **P1-3 Sales tax out of revenue** — `mapStripeCharge` now subtracts the
+  invoice tax (Stripe Tax) from recognized revenue (pass-through liability),
+  capped at the post-refund amount. (`stripe-map.ts` + test)
 - **P1-4 Multi-currency summed blindly** — every sum ignores the `currency` field.
   Guard/flag mixed currency or convert via FX; don't blend.
 - **P1-5 Fee currency** — fee uses settlement currency, charge uses presentment;
