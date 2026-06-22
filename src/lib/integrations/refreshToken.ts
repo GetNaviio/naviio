@@ -174,18 +174,36 @@ const PROVIDER_ENUM: Record<string, IntegrationProvider> = {
 export async function getTokenForUser(orgId: string, provider: string): Promise<string | null> {
   // Callers pass the lowercase id ('xero'); the DB stores the enum ('XERO').
   const enumProvider = PROVIDER_ENUM[provider.toLowerCase()] ?? (provider as IntegrationProvider)
-  const integration = await prisma.integration.findUnique({
-    where: { orgId_provider: { orgId, provider: enumProvider } },
-  })
+
+  // Flag the integration for reconnect (surfaced by the status route's
+  // `reconnect` map → existing banner) and fail soft. updateMany returns a
+  // count, not the row, so it never tries to decrypt the stored token on the
+  // way back (which is exactly what may be failing here).
+  const flagForReconnect = () =>
+    prisma.integration
+      .updateMany({ where: { orgId, provider: enumProvider }, data: { status: 'ERROR' } })
+      .catch(() => {})
+
+  let integration
+  try {
+    integration = await prisma.integration.findUnique({
+      where: { orgId_provider: { orgId, provider: enumProvider } },
+    })
+  } catch (err) {
+    // The row read decrypts the stored token transparently. If TOKEN_ENCRYPTION_KEY
+    // is missing or was rotated, that decrypt throws here — degrade to a
+    // reconnect prompt instead of bubbling a 500 / silently hiding the UI.
+    console.error(`Token read failed for ${provider} (likely encryption key mismatch):`, err)
+    await flagForReconnect()
+    return null
+  }
+
   if (!integration?.accessToken) return null
   try {
     return await getValidToken(integration)
   } catch (err) {
     console.error(`Token refresh failed for ${provider}:`, err)
-    await prisma.integration.update({
-      where: { id: integration.id },
-      data: { status: 'ERROR' },
-    })
+    await flagForReconnect()
     return null
   }
 }

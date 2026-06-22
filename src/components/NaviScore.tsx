@@ -25,6 +25,7 @@ function CustomTick({ x, y, payload, scores }: { x?: number; y?: number; payload
 export default function NaviScore() {
   const [dims, setDims] = useState<Dim[] | null>(null)
   const [overall, setOverall] = useState<number | null>(null)
+  const [reconnect, setReconnect] = useState(false)
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
 
@@ -34,8 +35,12 @@ export default function NaviScore() {
       fetch('/api/metrics').then((r) => (r.ok ? r.json() : null)),
       fetch('/api/stripe/metrics').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/revenue/movement').then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]).then(([mx, sm, move]) => {
+      fetch('/api/integrations/status').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([mx, sm, move, status]) => {
       if (!alive) return
+      // A connected provider whose token can't be read is flagged status:ERROR →
+      // surfaced here so the card prompts a reconnect rather than vanishing.
+      setReconnect(Object.values(status?.reconnect ?? {}).some(Boolean))
       const stripe = sm?.source === 'stripe' ? sm.metrics : null
       const wf = move?.waterfall ?? null
 
@@ -68,7 +73,24 @@ export default function NaviScore() {
 
   if (!dims) return null
   const available = dims.filter((d) => d.score != null)
-  if (available.length === 0) return null
+  if (available.length === 0) {
+    // No dimensions have data. If that's because a connected account needs
+    // re-authentication, say so and offer a reconnect — don't disappear.
+    if (!reconnect) return null
+    return (
+      <div className="rounded-xl p-6 flex items-center justify-between gap-4" style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}>
+        <div>
+          <h3 className="text-base font-semibold text-white">Navi Score</h3>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+            We can&apos;t read one of your connected accounts right now. Reconnect it to refresh your score.
+          </p>
+        </div>
+        <a href="/integrations" className="flex-shrink-0 text-sm font-medium px-4 py-2 rounded-lg" style={{ backgroundColor: '#3B82F6', color: '#fff' }}>
+          Reconnect
+        </a>
+      </div>
+    )
+  }
 
   const radarData = dims.map((d) => ({ dimension: d.key, score: d.score ?? 0 }))
   const scoreMap = Object.fromEntries(dims.map((d) => [d.key, d.score]))
