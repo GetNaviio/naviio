@@ -111,12 +111,12 @@ export default function CashFlowPage() {
             <div className="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Cash-flow statement (these reconcile: Cash In − Cash Out = Net Cash Flow) */}
               <MetricCard
-                title="Cash In"
+                title="Cash collected"
                 value={cf ? formatCurrency(cf.cashIn, true) : '—'}
                 icon={<TrendingUp size={16} style={{ color: '#10B981' }} />}
                 iconBg="rgba(16,185,129,0.15)"
                 subtitle="Trailing 12 mo"
-                tooltip="Total cash received across your connected accounts over the trailing 12 months, deduplicated against Stripe payouts."
+                tooltip="Cash that actually landed in your connected accounts (deduplicated against Stripe payouts). This is a cash-timing view and is NOT the same as Revenue — revenue is recognized when a sale is charged, before the payout settles and net of fees. See the P&L for recognized revenue."
               />
               <MetricCard
                 title="Cash Out"
