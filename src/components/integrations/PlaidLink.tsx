@@ -37,6 +37,10 @@ export default function PlaidLinkButton({
   // helpful "enable two-factor" prompt with a link to Settings instead of a raw
   // error string.
   const [mfaRequired, setMfaRequired] = useState(false)
+  // The mode the SERVER actually issued. The backend downgrades update→create
+  // when the existing token can't be read, so we must exchange (not refresh) on
+  // success. Defaults to the requested prop until the token response arrives.
+  const effectiveUpdateRef = useRef<boolean>(!!updateMode)
 
   // ── Step 1 & 2: fetch link token from our backend ────────────────────────
   async function getLinkToken() {
@@ -59,6 +63,9 @@ export default function PlaidLinkButton({
         }
         throw new Error(data.detail || data.error || 'Failed to create link token')
       }
+      // Honor the mode the server actually issued (it may have downgraded
+      // update→create when the old token was unreadable).
+      effectiveUpdateRef.current = data.mode ? data.mode === 'update' : !!updateMode
       // Persist before opening so an OAuth redirect can resume with this token.
       localStorage.setItem(PLAID_LINK_TOKEN_KEY, data.link_token)
       setLinkToken(data.link_token)
@@ -72,7 +79,7 @@ export default function PlaidLinkButton({
   const handleSuccess = useCallback<PlaidLinkOnSuccess>(async (publicToken, metadata) => {
     setLoading(true)
     try {
-      if (updateMode) {
+      if (effectiveUpdateRef.current) {
         // Update mode keeps the existing access token — no exchange. Just clear
         // the reconnect / new-accounts flags and resync.
         const res = await fetch('/api/auth/plaid/refresh', { method: 'POST' })

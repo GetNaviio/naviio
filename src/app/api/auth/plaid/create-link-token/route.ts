@@ -59,7 +59,10 @@ export async function POST(request: Request) {
     }
 
     const linkToken = await createLinkToken(orgId, updateToken, accountSelection)
-    return Response.json({ link_token: linkToken })
+    // Tell the client which mode we actually issued. When the prior token was
+    // unreadable we fall back to a fresh ('create') token even if the client
+    // asked for update mode — the client must then EXCHANGE (not refresh).
+    return Response.json({ link_token: linkToken, mode: updateToken ? 'update' : 'create' })
   } catch (err) {
     if (err instanceof Error && err.message === 'UNAUTHORIZED') {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
