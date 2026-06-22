@@ -405,6 +405,7 @@ export async function syncStripeData(orgId: string): Promise<StripeMetrics | nul
         upserts.push(prisma.transaction.upsert({ where: { orgId_externalId: { orgId, externalId: c.id } }, create: data, update: data }))
       }
       if (upserts.length) await prisma.$transaction(upserts)
+      console.log(`[stripe] sync persisted ${upserts.length} charge(s) (last 90d) for org ${orgId}`)
     } catch (err) {
       console.error('[stripe] charge persistence failed:', errMsg(err))
     }
