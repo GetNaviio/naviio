@@ -412,6 +412,12 @@ export async function syncStripeData(orgId: string): Promise<StripeMetrics | nul
       where: { id: integration.id },
       data: { lastSyncedAt: new Date(), status: 'CONNECTED' },
     })
+    // Persisting new Stripe charges into the ledger changes the Overview's
+    // cash-basis revenue/burn. Bust the broad org cache (not just the Stripe
+    // metrics key) so /api/metrics recomputes — otherwise the Overview keeps
+    // showing a pre-Stripe snapshot (e.g. $0 revenue) while the Revenue tab,
+    // which reads the fresh Stripe metrics, already shows the income.
+    await cache.delPattern(`org:${orgId}:*`).catch(() => {})
   }
 
   return computeStripeMetrics(orgId)
