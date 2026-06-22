@@ -70,9 +70,18 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb { background: #1E3055; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #2a4070; }
 
-/* In light mode, Tailwind's text-white should render as the dark primary color */
-#app-root.light .text-white {
+/* In light mode, Tailwind's text-white (used for white label text inside dark
+   cards) should render as the dark primary color. EXCEPTION: CTAs — links and
+   buttons — sit on a colored/branded background and must keep white text in both
+   themes, so exclude interactive elements (and anything explicitly opted out via
+   .keep-white) from the flip. */
+#app-root.light .text-white:not(a):not(button):not(.keep-white) {
   color: var(--color-text-primary) !important;
+}
+#app-root.light a.text-white,
+#app-root.light button.text-white,
+#app-root.light .text-white.keep-white {
+  color: #fff !important;
 }
 
 /* The document root sits BEHIND #app-root — without these, the page edge
