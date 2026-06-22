@@ -68,6 +68,9 @@ export default function ForecastPage() {
   // Neutral default assumptions (NOT derived from demo data) — the user adjusts these.
   const [growthRate, setGrowthRate] = useState(3)
   const [churnRate,  setChurnRate]  = useState(() => parseFloat((BASE_CHURN_RATE * 100).toFixed(2)))
+  // Whether the churn assumption was seeded from the customer's live trailing
+  // revenue churn (vs. the generic default) — drives the slider's label.
+  const [churnSeeded, setChurnSeeded] = useState(false)
   const [live, setLive] = useState<{ mrr: number; cash: number; opex: number } | null>(null)
   // Unit economics for driver-based opex: CAC (marketing ÷ new customers) and
   // ARPU (MRR ÷ customers) from the live metrics. When both are derivable, opex
@@ -115,6 +118,13 @@ export default function ForecastPage() {
       }
       // Only use real movement when at least two snapshots produced a waterfall.
       if (mv?.waterfall && mv.waterfall.startMrr > 0) setWaterfall(mv.waterfall as Waterfall)
+      // Seed the churn assumption from live trailing revenue churn (clamped to a
+      // sane ceiling so a degenerate measurement can't poison the projection)
+      // instead of the generic 3% default.
+      if (typeof mv?.trailingChurn === 'number') {
+        setChurnRate(Math.min(Math.max(mv.trailingChurn, 0), 25))
+        setChurnSeeded(true)
+      }
       if (Array.isArray(mv?.cohorts)) setCohorts(mv.cohorts as CohortSeries[])
       setLoading(false)
     }).catch(() => { if (alive) setLoading(false) })
@@ -298,15 +308,29 @@ export default function ForecastPage() {
                 format={(v) => `${v.toFixed(1)}%`}
                 onChange={setGrowthRate}
               />
-              <Slider
-                label="Monthly Churn Rate"
-                value={churnRate}
-                min={0.5}
-                max={8}
-                step={0.1}
-                format={(v) => `${v.toFixed(1)}%`}
-                onChange={setChurnRate}
-              />
+              {waterfall || cohortActive ? (
+                <div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span style={{ color: 'var(--color-text-secondary)' }}>Monthly Churn Rate</span>
+                    <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                      {churnSeeded ? `${churnRate.toFixed(1)}%` : '—'}
+                    </span>
+                  </div>
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    Derived from your actual {cohortActive ? 'cohort retention' : 'MRR movement'} — the slider is inactive while real history drives the base case.
+                  </p>
+                </div>
+              ) : (
+                <Slider
+                  label={`Monthly Churn Rate ${churnSeeded ? '(from your data)' : '(assumed)'}`}
+                  value={churnRate}
+                  min={0.5}
+                  max={8}
+                  step={0.1}
+                  format={(v) => `${v.toFixed(1)}%`}
+                  onChange={setChurnRate}
+                />
+              )}
               <div className="pt-2 space-y-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
                 {cohortActive ? (
                   <p>

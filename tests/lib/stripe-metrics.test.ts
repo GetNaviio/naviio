@@ -38,15 +38,20 @@ describe('subscriptionMrr (P1-7)', () => {
   })
 })
 
-describe('logoChurnRate (P1-6)', () => {
+describe('logoChurnRate (P1-6 + degenerate suppression)', () => {
   it('uses the start-of-window base (active − joined + cancelled)', () => {
     // 100 active now, 10 joined this window, 5 cancelled → base 95 → 5/95
     expect(logoChurnRate(100, 10, 5)).toBeCloseTo(5 / 95, 6)
   })
-  it('is 0 when nobody churned', () => {
+  it('is 0 when nobody churned (base large enough)', () => {
     expect(logoChurnRate(100, 10, 0)).toBe(0)
   })
-  it('is 0 when the start base is empty', () => {
-    expect(logoChurnRate(5, 5, 0)).toBe(0)
+  it('suppresses (null) when the start base is below the minimum', () => {
+    expect(logoChurnRate(5, 5, 0)).toBeNull() // base 0
+    expect(logoChurnRate(8, 0, 0)).toBeNull() // base 8 < 10
+    expect(logoChurnRate(3, 3, 2)).toBeNull() // tiny base that would saturate at 100%
+  })
+  it('suppresses (null) when there are no active subscriptions', () => {
+    expect(logoChurnRate(0, 0, 12)).toBeNull() // all gone → not a confident 100%
   })
 })

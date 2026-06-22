@@ -49,6 +49,15 @@ export default function RevenuePage() {
   const mrrTrend = mv?.waterfall && mv.waterfall.startMrr
     ? (mv.waterfall.netNewMrr / mv.waterfall.startMrr) * 100
     : null
+  // Revenue (gross MRR) churn from the waterfall — reconciles with NRR/GRR and is
+  // the right headline churn for heterogeneous ACVs. Null until 2 snapshots exist
+  // (shown as "Building history"); downgrades reported separately as contraction.
+  const wf = mv?.waterfall && mv.waterfall.startMrr > 0 ? mv.waterfall : null
+  const revChurn = wf ? (wf.churnedMrr / wf.startMrr) * 100 : null
+  const contraction = wf ? (wf.contractionMrr / wf.startMrr) * 100 : null
+  // LTV uses the SAME (revenue) churn so it reconciles with the churn card; falls
+  // back to the server (logo-based) LTV only before any history exists.
+  const ltvDisplay = revChurn != null && revChurn > 0 ? arpu / (revChurn / 100) : (m?.ltv ?? null)
 
   return (
     <div>
@@ -84,15 +93,15 @@ export default function RevenuePage() {
               chips={[
                 { label: 'ARR', value: money(m?.arr), color: '#3B82F6' },
                 { label: 'Customers', value: total.toLocaleString(), color: '#10B981' },
-                { label: 'Churn', value: `${((m?.churnRate ?? 0) * 100).toFixed(1)}%`, color: '#EF4444' },
+                { label: 'Churn', value: revChurn != null ? `${revChurn.toFixed(1)}%` : '—', color: '#EF4444' },
               ]}
             />
 
             <div className="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <MetricCard title="MRR" value={money(mrr)} icon={<TrendingUp size={16} style={{ color: '#3B82F6' }} />} iconBg="rgba(59,130,246,0.15)" subtitle={`ARR ${money(m?.arr)}`} tooltip="Monthly Recurring Revenue — normalized monthly value of all active Stripe subscriptions." />
               <MetricCard title="Active Customers" value={total.toLocaleString()} icon={<Users size={16} style={{ color: '#10B981' }} />} iconBg="rgba(16,185,129,0.15)" subtitle={`+${m?.customers?.newThisMonth ?? 0} this month`} tooltip="Customers with active subscriptions, from Stripe." />
-              <MetricCard title="Churn Rate" value={`${((m?.churnRate ?? 0) * 100).toFixed(2)}`} suffix="%" icon={<Activity size={16} style={{ color: '#EF4444' }} />} iconBg="rgba(239,68,68,0.15)" tooltip="Monthly logo churn — share of customers lost to cancellation." />
-              <MetricCard title="LTV" value={money(m?.ltv ?? null)} icon={<BarChart3 size={16} style={{ color: '#8B5CF6' }} />} iconBg="rgba(139,92,246,0.15)" subtitle={`ARPU ${formatCurrency(arpu)}/mo`} tooltip="Customer Lifetime Value — ARPU ÷ churn rate." />
+              <MetricCard title="Churn Rate" value={revChurn != null ? revChurn.toFixed(2) : '—'} suffix={revChurn != null ? '%' : undefined} icon={<Activity size={16} style={{ color: '#EF4444' }} />} iconBg="rgba(239,68,68,0.15)" subtitle={revChurn != null ? (contraction != null ? `+${contraction.toFixed(1)}% contraction` : undefined) : 'Building history'} tooltip="Gross MRR churn — starting MRR lost to cancellation ÷ starting MRR (downgrades shown separately as contraction). Revenue-based, so it ties to GRR and the forecast." />
+              <MetricCard title="LTV" value={money(ltvDisplay)} icon={<BarChart3 size={16} style={{ color: '#8B5CF6' }} />} iconBg="rgba(139,92,246,0.15)" subtitle={`ARPU ${formatCurrency(arpu)}/mo`} tooltip="Customer Lifetime Value — ARPU ÷ revenue churn rate." />
             </div>
 
             {mv?.waterfall && mv.nrr != null ? (

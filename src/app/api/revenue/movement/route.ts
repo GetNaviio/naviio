@@ -1,6 +1,6 @@
 import { requireAuth, getDefaultOrgId } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { mrrWaterfall, nrr, grr, cohortRetention, type SubMrr, type CohortRow } from '@/lib/metrics/mrr'
+import { mrrWaterfall, nrr, grr, trailingGrossMrrChurn, cohortRetention, type SubMrr, type CohortRow, type Waterfall } from '@/lib/metrics/mrr'
 
 /**
  * MRR movement (waterfall + NRR/GRR) for the latest two captured periods, plus
@@ -40,6 +40,24 @@ export async function GET() {
 
     const w = mrrWaterfall(toSub(prev), toSub(curr))
 
+    // Trailing-average gross MRR churn over the last few period-pairs — a single
+    // period is too noisy to seed a forecast. Build consecutive-pair waterfalls
+    // across up to the last 4 periods (oldest→newest) and average their churn.
+    const recentPeriods = periods.slice(0, 4).reverse()
+    const trailRows = await prisma.mrrSnapshot.findMany({
+      where: { orgId, period: { in: recentPeriods } },
+      select: { period: true, subscriptionId: true, customerId: true, mrr: true },
+    })
+    const subsFor = (period: string): SubMrr[] =>
+      trailRows
+        .filter((r) => r.period === period && r.mrr > 0)
+        .map((r) => ({ subscriptionId: r.subscriptionId, customerId: r.customerId, mrr: r.mrr }))
+    const pairWaterfalls: Waterfall[] = []
+    for (let i = 1; i < recentPeriods.length; i++) {
+      pairWaterfalls.push(mrrWaterfall(subsFor(recentPeriods[i - 1]), subsFor(recentPeriods[i])))
+    }
+    const trailingChurn = trailingGrossMrrChurn(pairWaterfalls, 3) // percent, or null
+
     // Cohort retention uses the full snapshot history.
     const all = await prisma.mrrSnapshot.findMany({
       where: { orgId },
@@ -54,6 +72,7 @@ export async function GET() {
       waterfall: w,
       nrr: nrr(w),
       grr: grr(w),
+      trailingChurn,
       cohorts,
     })
   } catch (err) {

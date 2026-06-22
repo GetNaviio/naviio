@@ -264,14 +264,21 @@ export async function fetchRevenue(orgId: string, days = 30) {
   return { grossRevenue, refunds, netRevenue: grossRevenue - refunds }
 }
 
+/** Below this start-of-window subscriber base, a single cancellation swings the
+ *  rate by >10 points — too noisy to report. Suppress instead of showing a
+ *  confident 100% (or 0%) off 1–2 subscriptions. */
+export const MIN_CHURN_BASE = 10
+
 /**
  * Logo churn rate (pure): cancellations in the window ÷ the subscriber base at the
  * START of the window. Start base = active now − joined during window + cancelled
- * during window. Returns 0–1; 0 when the start base is empty.
+ * during window. Returns 0–1, or **null** when the base is too small to be
+ * meaningful (< MIN_CHURN_BASE) or there are no active subscribers — so the UI
+ * suppresses it rather than reporting a degenerate 100%/0%.
  */
-export function logoChurnRate(activeNow: number, joinedInWindow: number, canceledInWindow: number): number {
+export function logoChurnRate(activeNow: number, joinedInWindow: number, canceledInWindow: number): number | null {
   const baseAtStart = activeNow - joinedInWindow + canceledInWindow
-  if (baseAtStart <= 0) return 0
+  if (baseAtStart < MIN_CHURN_BASE || activeNow === 0) return null
   return canceledInWindow / baseAtStart
 }
 
@@ -356,7 +363,13 @@ export async function getCustomerMetrics(orgId: string) {
   let total = 0, newThisMonth = 0, churnedThisMonth = 0
   for await (const _ of stripe.customers.list({ limit: 100 })) { void _; total++ }
   for await (const _ of stripe.customers.list({ created: { gte: monthStart }, limit: 100 })) { void _; newThisMonth++ }
-  for await (const _ of stripe.subscriptions.list({ status: 'canceled', created: { gte: monthStart }, limit: 100 })) { void _; churnedThisMonth++ }
+  // Count subs that actually CANCELLED this month (canceled_at/ended_at), not
+  // those created this month — `created` undercounts churn and disagrees with
+  // the churn-rate card. Stripe can't filter canceled_at server-side.
+  for await (const sub of stripe.subscriptions.list({ status: 'canceled', limit: 100 })) {
+    const ended = sub.canceled_at ?? sub.ended_at
+    if (ended && ended >= monthStart) churnedThisMonth++
+  }
   return { total, newThisMonth, churnedThisMonth }
 }
 

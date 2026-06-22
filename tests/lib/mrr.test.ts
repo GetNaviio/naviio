@@ -1,4 +1,27 @@
-import { mrrWaterfall, nrr, grr, cohortRetention, type SubMrr } from '@/lib/metrics/mrr'
+import { mrrWaterfall, nrr, grr, grossMrrChurnRate, contractionRate, trailingGrossMrrChurn, cohortRetention, type SubMrr, type Waterfall } from '@/lib/metrics/mrr'
+
+const wf = (over: Partial<Waterfall> = {}): Waterfall => ({
+  startMrr: 1000, newMrr: 0, expansionMrr: 0, contractionMrr: 0, churnedMrr: 0, endMrr: 1000, netNewMrr: 0, ...over,
+})
+
+describe('revenue churn helpers (accountant-grade)', () => {
+  it('grossMrrChurnRate = churnedMrr / startMrr (cancellation only)', () => {
+    expect(grossMrrChurnRate(wf({ churnedMrr: 50 }))).toBe(5) // 50/1000
+    expect(grossMrrChurnRate(wf({ startMrr: 0 }))).toBeNull()
+  })
+  it('contractionRate is reported separately from churn', () => {
+    expect(contractionRate(wf({ contractionMrr: 30 }))).toBe(3)
+  })
+  it('reconciles with GRR: GRR = 100 − grossChurn − contraction', () => {
+    const w = wf({ churnedMrr: 50, contractionMrr: 30 })
+    expect(grr(w)).toBeCloseTo(100 - grossMrrChurnRate(w)! - contractionRate(w)!, 6)
+  })
+  it('trailingGrossMrrChurn averages the last N period-pairs, skipping empties', () => {
+    const ws = [wf({ churnedMrr: 100 }), wf({ churnedMrr: 50 }), wf({ churnedMrr: 30 })] // 10%,5%,3%
+    expect(trailingGrossMrrChurn(ws, 3)).toBeCloseTo((10 + 5 + 3) / 3, 4)
+    expect(trailingGrossMrrChurn([], 3)).toBeNull()
+  })
+})
 
 describe('mrrWaterfall', () => {
   const prev: SubMrr[] = [

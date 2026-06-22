@@ -87,6 +87,38 @@ export function grr(w: Waterfall): number | null {
   return round2(((w.startMrr - w.contractionMrr - w.churnedMrr) / w.startMrr) * 100)
 }
 
+/**
+ * Gross MRR churn rate — starting MRR lost to CANCELLATION over the period
+ * (downgrades are contraction, reported separately). This is the revenue-based
+ * churn that reconciles with GRR (GRR = 100 − grossMrrChurn − contractionRate)
+ * and the forecast, unlike logo churn. Null when there's no starting MRR.
+ */
+export function grossMrrChurnRate(w: Waterfall): number | null {
+  if (w.startMrr <= 0) return null
+  return round2((w.churnedMrr / w.startMrr) * 100)
+}
+
+/** MRR contraction rate — starting MRR lost to DOWNGRADES (not cancellation). */
+export function contractionRate(w: Waterfall): number | null {
+  if (w.startMrr <= 0) return null
+  return round2((w.contractionMrr / w.startMrr) * 100)
+}
+
+/**
+ * Trailing-average gross MRR churn (%) over the most recent `windows`
+ * period-pairs — a single period is as noisy as a logo count, so the forecast
+ * seeds from this smoothed rate. `waterfalls` are ordered oldest→newest. Returns
+ * null when none have a positive starting MRR.
+ */
+export function trailingGrossMrrChurn(waterfalls: Waterfall[], windows = 3): number | null {
+  const rates = waterfalls
+    .slice(-windows)
+    .map((w) => grossMrrChurnRate(w))
+    .filter((r): r is number => r != null)
+  if (rates.length === 0) return null
+  return round2(rates.reduce((s, r) => s + r, 0) / rates.length)
+}
+
 // ─── Cohort retention ─────────────────────────────────────────────────────────
 
 export interface CohortRow {
