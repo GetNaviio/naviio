@@ -1,12 +1,14 @@
 /**
- * White-label branding for the active org (CFO Suite).
- *   GET   — current branding + whether this account may edit it (owner+CFO)
+ * White-label branding for the active org (FIRM feature).
+ *   GET   — current branding + whether this account may edit it (owner of a
+ *           firm-managed org)
  *   PATCH — set logo URL / brand color / hide-Naviio (owner only, and only on
- *           a CFO-plan org — white-label is a CFO Suite capability)
+ *           a firm-managed org — white-label is a fractional-CFO firm capability)
  *
- * Gating note: the CFO check is on the ACTIVE org's plan. Client entities
- * created under a CFO subscription are themselves CFO-plan (§AG), so a
- * fractional CFO can brand each client entity individually.
+ * Gating note: white-label is firm-only. It is available on orgs that belong to
+ * a firm (Organization.firmId set) — i.e. client entities under a fractional CFO
+ * — so the firm can brand each client. Individual (non-firm) plans, including
+ * CFO Suite, do not get per-org white-label.
  */
 import { z } from 'zod'
 import { withOrg } from '@/lib/api/with-org'
@@ -25,25 +27,26 @@ export const GET = withOrg(async (_request, { user, orgId }) => {
     getOrgRole(orgId, user.id),
     prisma.organization.findUniqueOrThrow({
       where: { id: orgId },
-      select: { plan: true, brandLogoUrl: true, brandColor: true, hideNaviioBranding: true },
+      select: { plan: true, firmId: true, brandLogoUrl: true, brandColor: true, hideNaviioBranding: true },
     }),
   ])
   return Response.json({
     branding: brandingFrom(org),
-    canEdit: role === 'OWNER' && org.plan === 'CFO',
-    plan: org.plan,
+    // White-label is firm-only: editable by the owner of a firm-managed org.
+    canEdit: role === 'OWNER' && org.firmId != null,
+    isFirmOrg: org.firmId != null,
   })
 })
 
 export const PATCH = withOrg(async (request, { user, orgId }) => {
   const [role, org] = await Promise.all([
     getOrgRole(orgId, user.id),
-    prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { plan: true } }),
+    prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { firmId: true } }),
   ])
   if (role !== 'OWNER') return Response.json({ error: 'Only the owner can change branding' }, { status: 403 })
-  if (org.plan !== 'CFO') {
+  if (org.firmId == null) {
     return Response.json(
-      { error: 'White-label branding is a CFO Suite feature', code: 'CFO_REQUIRED' },
+      { error: 'White-label branding is a fractional-CFO firm feature', code: 'FIRM_REQUIRED' },
       { status: 403 },
     )
   }

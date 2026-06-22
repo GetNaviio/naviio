@@ -1,11 +1,11 @@
 'use client'
 
 /**
- * White-label branding manager (CFO Suite). Owner of a CFO-plan org sets a
- * logo URL + accent color shown on the client portal (and exported reports),
+ * White-label branding manager (firm feature). Owner of a firm-managed org sets
+ * a logo URL + accent color shown on the client portal (and exported reports),
  * and can hide the "Powered by Navi" mark. Live preview so they see the
- * client-facing result before saving. Renders a soft upsell for non-CFO orgs,
- * nothing for non-owners.
+ * client-facing result before saving. White-label is firm-only, so this renders
+ * nothing for individual (non-firm) accounts or non-owners.
  */
 import { useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
@@ -23,7 +23,7 @@ function toSixHex(hex: string): string {
 }
 
 export default function BrandingSection() {
-  const [status, setStatus] = useState<'loading' | 'ready' | 'locked' | 'hidden' | 'error'>('loading')
+  const [status, setStatus] = useState<'loading' | 'ready' | 'hidden' | 'error'>('loading')
   const [logoUrl, setLogoUrl] = useState('')
   const [color, setColor] = useState('')
   const [hideNaviio, setHideNaviio] = useState(false)
@@ -53,9 +53,9 @@ export default function BrandingSection() {
         setLogoUrl(d.branding?.logoUrl ?? '')
         setColor(d.branding?.color ?? '')
         setHideNaviio(!!d.branding?.hideNaviioBranding)
-        // canEdit = owner AND CFO plan. Owners on a lesser plan see the upsell;
-        // members see nothing.
-        setStatus(d.canEdit ? 'ready' : d.plan ? 'locked' : 'hidden')
+        // White-label is firm-only: canEdit = owner of a firm-managed org.
+        // Everyone else (individual plans, non-owners) sees nothing.
+        setStatus(d.canEdit ? 'ready' : 'hidden')
       })
       .catch(() => setStatus('error'))
   }, [])
@@ -83,17 +83,6 @@ export default function BrandingSection() {
         <p className="text-sm" style={{ color: '#F59E0B' }}>
           Couldn&apos;t load branding. If you just updated the app, run the pending database
           migration and restart the server, then refresh.
-        </p>
-      </Card>
-    )
-  }
-
-  if (status === 'locked') {
-    return (
-      <Card title="White-label" subtitle="Put your client's brand on their portal and reports">
-        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-          Custom logos and colors on the client portal are a{' '}
-          <span className="font-semibold" style={{ color: '#3B82F6' }}>CFO Suite</span> feature.
         </p>
       </Card>
     )

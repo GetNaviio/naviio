@@ -1,5 +1,5 @@
 /**
- * White-label logo upload (CFO Suite). Owner of a CFO-plan org uploads an
+ * White-label logo upload (firm feature). Owner of a firm-managed org uploads an
  * image; we store it in public Blob storage and set brandLogoUrl to the
  * resulting https URL — the same field the portal renders, so nothing else
  * changes downstream.
@@ -27,11 +27,11 @@ export const POST = withOrg(async (request, { user, orgId }) => {
 
   const [role, org] = await Promise.all([
     getOrgRole(orgId, user.id),
-    prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { plan: true } }),
+    prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { firmId: true } }),
   ])
   if (role !== 'OWNER') return Response.json({ error: 'Only the owner can change branding' }, { status: 403 })
-  if (org.plan !== 'CFO') {
-    return Response.json({ error: 'White-label branding is a CFO Suite feature', code: 'CFO_REQUIRED' }, { status: 403 })
+  if (org.firmId == null) {
+    return Response.json({ error: 'White-label branding is a fractional-CFO firm feature', code: 'FIRM_REQUIRED' }, { status: 403 })
   }
   if (!blobConfigured()) {
     return Response.json(

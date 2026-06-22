@@ -57,7 +57,7 @@ export const PLAN_PRICING: PlanPricing[] = [
   p('GROWTH', 'Growth', 14_900, 3, 1, 0, 'Full dashboard, forecasting, and AI categorization for growing SMBs.'),
   // Pro: 3 entities, then $99/entity. CFO Suite: 10 entities, then $99/entity.
   p('PRO', 'Pro', 34_900, 10, 3, ENTITY_OVERAGE_CENTS, 'Scenario modeling, board reports, and multi-entity (up to 3 entities, then $99/entity).'),
-  p('CFO', 'CFO Suite', 79_900, Number.POSITIVE_INFINITY, 10, ENTITY_OVERAGE_CENTS, 'Multi-entity at scale — up to 10 entities, then $99/entity, with white-label.'),
+  p('CFO', 'CFO Suite', 79_900, Number.POSITIVE_INFINITY, 10, ENTITY_OVERAGE_CENTS, 'Multi-entity at scale — up to 10 entities, then $99/entity.'),
 ]
 
 /** All self-serve plans (CFO Suite is back as the multi-entity tier; the
