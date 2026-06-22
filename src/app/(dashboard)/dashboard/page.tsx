@@ -23,7 +23,7 @@ import type { CashFlowDataPoint } from '@/types'
 interface Metrics {
   hasData: boolean
   sources: { plaid: boolean; stripe: boolean; quickbooks: boolean; xero: boolean }
-  incomeStatement: { totalIncome: number; totalExpenses: number; netIncome: number; netMargin: number | null }
+  incomeStatement: { totalIncome: number; totalExpenses: number; netIncome: number; netMargin: number | null; byMonth: { month: string; income: number; expenses: number; net: number }[] }
   cashFlow: { burnRate: number; byMonth: { month: string; cashIn: number; cashOut: number; net: number }[] }
   cash: { balance: number | null }
   runwayMonths: number | null
@@ -123,7 +123,14 @@ export default function DashboardPage() {
   const pctChange = (cur?: number, prior?: number) =>
     cur != null && prior != null && prior !== 0 ? ((cur - prior) / Math.abs(prior)) * 100 : undefined
   const balSpark = series.map((s) => s.balance)
-  const revSpark = series.map((s) => s.cashIn)
+  // Revenue = RECOGNIZED revenue from the income statement (gross, on payment
+  // date), so the Overview ties out to the P&L. NOT cash-in (bank-settlement
+  // timing) — a Stripe charge is revenue when captured, even before its payout
+  // lands in the bank. The cash-settlement view lives on Cash Flow ("Cash in").
+  const isMonths = is?.byMonth ?? []
+  const lastIsM = isMonths[isMonths.length - 1]
+  const prevIsM = isMonths[isMonths.length - 2]
+  const revSpark = isMonths.map((b) => b.income)
   const burnSpark = series.map((s) => Math.max(0, s.cashOut - s.cashIn))
   const burnNow = cf?.burnRate ?? 0
   const runwaySpark = burnNow > 0 ? balSpark.map((b) => Math.max(0, Math.round(b / burnNow))) : []
@@ -154,12 +161,12 @@ export default function DashboardPage() {
     },
     {
       title: 'Revenue',
-      value: isMonth ? (lastM ? formatCurrency(lastM.cashIn, true) : EMPTY) : (is ? formatCurrency(is.totalIncome, true) : EMPTY),
+      value: isMonth ? (lastIsM ? formatCurrency(lastIsM.income, true) : EMPTY) : (is ? formatCurrency(is.totalIncome, true) : EMPTY),
       subtitle: isMonth ? 'This month' : 'Year to date',
-      trend: pctChange(lastM?.cashIn, prevM?.cashIn),
+      trend: pctChange(lastIsM?.income, prevIsM?.income),
       icon: <TrendingUp size={16} style={{ color: '#06B6D4' }} />, iconBg: 'rgba(6,182,212,0.15)',
       sparkline: revSpark.length > 1 ? revSpark : undefined, sparklineColor: '#06B6D4',
-      tooltip: 'Cash-basis revenue from your bank + payment activity.',
+      tooltip: 'Recognized revenue — gross, on the payment date (a Stripe charge counts when captured, before its bank payout). Matches the P&L. Cash that actually landed in the bank is on Cash Flow ("Cash in").',
     },
     {
       title: 'Runway',
