@@ -38,16 +38,28 @@ interface SidebarProps {
 export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { theme } = useTheme()
-  const [isFirm, setIsFirm] = useState(false)
+  // null = not yet known. Start from the last-known value (cached) so the
+  // Clients tab doesn't pop in on every load for firm users, then refresh from
+  // the server. Init is null on both server and client to avoid a hydration
+  // mismatch; the cached value is applied in the effect.
+  const [isFirm, setIsFirm] = useState<boolean | null>(null)
 
   useEffect(() => {
+    try {
+      const cached = window.localStorage.getItem('naviio:isFirm')
+      if (cached !== null) setIsFirm(cached === '1')
+    } catch {}
     fetch('/api/org/switch')
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setIsFirm(!!d?.isFirm))
+      .then((d) => {
+        const v = !!d?.isFirm
+        setIsFirm(v)
+        try { window.localStorage.setItem('naviio:isFirm', v ? '1' : '0') } catch {}
+      })
       .catch(() => {})
   }, [])
 
-  const items = nav.filter((n) => !n.firmOnly || isFirm)
+  const items = nav.filter((n) => !n.firmOnly || isFirm === true)
 
   return (
     <aside

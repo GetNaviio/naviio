@@ -49,7 +49,7 @@ function TypingIndicator() {
   )
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message, userInitial = 'U' }: { message: Message; userInitial?: string }) {
   const isUser = message.role === 'user'
 
   if (isUser) {
@@ -66,7 +66,7 @@ function MessageBubble({ message }: { message: Message }) {
             className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white mb-0.5"
             style={{ background: 'linear-gradient(135deg, #3B82F6, #14B8A6)' }}
           >
-            E
+            {userInitial}
           </div>
         </div>
       </div>
@@ -107,17 +107,37 @@ function MessageBubble({ message }: { message: Message }) {
   )
 }
 
+// Greeting personalized to the signed-in user. Generic ("Hi —") until their
+// name loads, so it never hardcodes a wrong name.
+function welcomeMessage(firstName?: string): string {
+  return `Hi${firstName ? ` ${firstName}` : ''} — I have full visibility into your financials. Ask me anything about your P&L, tax strategy, cash flow, or business performance. I can also run scenarios and flag optimization opportunities.`
+}
+
 export default function InsightsPage() {
   const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content:
-        "Hi Eric — I have full visibility into your financials. Ask me anything about your P&L, tax strategy, cash flow, or business performance. I can also run scenarios and flag optimization opportunities.",
-    },
+    { id: 'welcome', role: 'assistant', content: welcomeMessage() },
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [userName, setUserName] = useState<string | null>(null)
+  const firstName = userName ? userName.split(/[\s@]/)[0] : ''
+  const userInitial = (userName || 'U').charAt(0).toUpperCase()
+
+  // Personalize the greeting + user avatar once we know who's signed in.
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const name: string | null = d?.user?.name || d?.user?.email || null
+        if (!name) return
+        setUserName(name)
+        const fn = name.split(/[\s@]/)[0]
+        setMessages((prev) =>
+          prev.map((m) => (m.id === 'welcome' ? { ...m, content: welcomeMessage(fn) } : m)),
+        )
+      })
+      .catch(() => {})
+  }, [])
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -215,12 +235,7 @@ export default function InsightsPage() {
   const clearChat = () => {
     abortRef.current?.abort()
     setMessages([
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content:
-          "Hi Eric — I have full visibility into your financials. Ask me anything about your P&L, tax strategy, cash flow, or business performance. I can also run scenarios and flag optimization opportunities.",
-      },
+      { id: 'welcome', role: 'assistant', content: welcomeMessage(firstName) },
     ])
     setIsLoading(false)
   }
@@ -261,7 +276,7 @@ export default function InsightsPage() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
+          <MessageBubble key={msg.id} message={msg} userInitial={userInitial} />
         ))}
 
         {/* Suggested prompts (shown after welcome only) */}

@@ -50,10 +50,14 @@ const SUGGESTED = [
   { icon: PieChart,    prompt: 'Should I stay S-Corp or consider switching to C-Corp?' },
 ]
 
-const WELCOME: Message = {
-  id: 'welcome',
-  role: 'assistant',
-  content: "Hi Eric — I'm Navi, your financial co-pilot. Ask me anything about your P&L, taxes, cash flow, or business performance.",
+// Greeting personalized to the signed-in user. Generic ("Hi —") until their
+// name loads, so it never hardcodes a wrong name.
+function welcomeMessage(firstName?: string): Message {
+  return {
+    id: 'welcome',
+    role: 'assistant',
+    content: `Hi${firstName ? ` ${firstName}` : ''} — I'm Navi, your financial co-pilot. Ask me anything about your P&L, taxes, cash flow, or business performance.`,
+  }
 }
 
 function TypingDots() {
@@ -81,7 +85,22 @@ function TypingDots() {
 
 export default function ChatBot() {
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState<Message[]>([WELCOME])
+  const [messages, setMessages] = useState<Message[]>([welcomeMessage()])
+  const [firstName, setFirstName] = useState('')
+
+  // Personalize the greeting once we know who's signed in.
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const name: string | null = d?.user?.name || d?.user?.email || null
+        if (!name) return
+        const fn = name.split(/[\s@]/)[0]
+        setFirstName(fn)
+        setMessages((prev) => prev.map((m) => (m.id === 'welcome' ? welcomeMessage(fn) : m)))
+      })
+      .catch(() => {})
+  }, [])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [outOfCredits, setOutOfCredits] = useState(false)
@@ -296,7 +315,7 @@ export default function ChatBot() {
 
   const reset = () => {
     abortRef.current?.abort()
-    setMessages([WELCOME])
+    setMessages([welcomeMessage(firstName)])
     setLoading(false)
     setPending(null)
   }

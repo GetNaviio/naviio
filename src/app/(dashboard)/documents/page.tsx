@@ -128,7 +128,11 @@ function DocumentsInner() {
           </div>
         )}
 
-        {!configured ? (
+        {loading ? (
+          <div className="rounded-xl border p-6 text-center" style={card}>
+            <p className="text-sm animate-pulse" style={{ color: 'var(--color-text-muted)' }}>Loading…</p>
+          </div>
+        ) : !configured ? (
           <div className="rounded-xl border p-6 text-center" style={card}>
             <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
               Document sharing isn&rsquo;t configured on this server yet (missing Dropbox app keys).

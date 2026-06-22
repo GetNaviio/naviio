@@ -36,6 +36,7 @@ export default function SettingsPage() {
   const [loading,      setLoading]      = useState(false)
   const [copied,       setCopied]       = useState(false)
   const [mfaEnabled,   setMfaEnabled]   = useState(false)
+  const [securityLoaded, setSecurityLoaded] = useState(false)
   const [disablePw,    setDisablePw]    = useState('')
   const [disableCode,  setDisableCode]  = useState('')
   const [showDisable,  setShowDisable]  = useState(false)
@@ -68,6 +69,16 @@ export default function SettingsPage() {
     } catch { /* ignore */ }
   }
   useEffect(() => { loadPasskeys() }, [])
+
+  // Load real TOTP status on mount so the security banner reflects actual state
+  // instead of defaulting to "not enabled" (which never self-corrected before).
+  useEffect(() => {
+    fetch('/api/auth/mfa/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setMfaEnabled(!!d.mfaEnabled) })
+      .catch(() => {})
+      .finally(() => setSecurityLoaded(true))
+  }, [])
 
   async function addPasskey() {
     setPasskeyBusy(true); setPasskeyError('')
@@ -236,32 +247,39 @@ export default function SettingsPage() {
         {/* ── Security: 2FA + passkeys ── */}
         {tab === 'security' && (
           <>
-        {/* MFA status banner */}
-        <div
-          className="flex items-center gap-4 px-5 py-4 rounded-xl"
-          style={{
-            backgroundColor: mfaEnabled ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
-            border: `1px solid ${mfaEnabled ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}`,
-          }}
-        >
-          {mfaEnabled
-            ? <ShieldCheck size={22} style={{ color: '#10B981', flexShrink: 0 }} />
-            : <AlertTriangle size={22} style={{ color: '#F59E0B', flexShrink: 0 }} />
-          }
-          <div>
-            <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-              {mfaEnabled ? 'Two-factor authentication is enabled' : 'Two-factor authentication is not enabled'}
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
-              {mfaEnabled
-                ? 'Your account is protected with an authenticator app. You will be prompted for a code at each login.'
-                : 'Add an extra layer of security. You will need your authenticator app each time you sign in.'}
-            </p>
+        {/* MFA status banner — gated on a real status fetch so it never flashes
+            "not enabled" for an account that already has 2FA on. */}
+        {!securityLoaded ? (
+          <div className="px-5 py-4 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Loading security status…</p>
           </div>
-        </div>
+        ) : (
+          <div
+            className="flex items-center gap-4 px-5 py-4 rounded-xl"
+            style={{
+              backgroundColor: mfaEnabled ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
+              border: `1px solid ${mfaEnabled ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}`,
+            }}
+          >
+            {mfaEnabled
+              ? <ShieldCheck size={22} style={{ color: '#10B981', flexShrink: 0 }} />
+              : <AlertTriangle size={22} style={{ color: '#F59E0B', flexShrink: 0 }} />
+            }
+            <div>
+              <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                {mfaEnabled ? 'Two-factor authentication is enabled' : 'Two-factor authentication is not enabled'}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
+                {mfaEnabled
+                  ? 'Your account is protected with an authenticator app. You will be prompted for a code at each login.'
+                  : 'Add an extra layer of security. You will need your authenticator app each time you sign in.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Step: idle (not set up) ── */}
-        {step === 'idle' && !mfaEnabled && (
+        {securityLoaded && step === 'idle' && !mfaEnabled && (
           <Card title="Set Up Authenticator App" subtitle="Use Google Authenticator, Authy, or 1Password" tooltip="TOTP-based MFA generates a new 6-digit code every 30 seconds. Even if your password is compromised, an attacker cannot log in without physical access to your device.">
             <div className="space-y-4">
               <div className="space-y-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>

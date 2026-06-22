@@ -34,12 +34,15 @@ export default function BillingSection() {
   const [orgCount, setOrgCount] = useState(0)
   const [bill, setBill] = useState<Bill | null>(null)
   const [connectStatus, setConnectStatus] = useState<string>('none')
-  const [billingConfigured, setBillingConfigured] = useState(true)
+  // Default to the safe/locked direction (false) so we never flash an enabled
+  // billing state before the real status loads.
+  const [billingConfigured, setBillingConfigured] = useState(false)
   const [priceConfigured, setPriceConfigured] = useState(false)
   const [subscriptionActive, setSubscriptionActive] = useState(false)
   const [subStatus, setSubStatus] = useState<string>('none')
   const [cycle, setCycle] = useState<Cycle>('monthly')
   const [busy, setBusy] = useState(false)
+  const [loaded, setLoaded] = useState(false)
 
   const load = useCallback(async () => {
     const res = await fetch('/api/firm/billing')
@@ -54,6 +57,7 @@ export default function BillingSection() {
     setSubscriptionActive(data.subscriptionActive ?? false)
     setSubStatus(data.subscriptionStatus ?? 'none')
     setCycle(data.cycle ?? 'monthly')
+    setLoaded(true)
   }, [])
 
   useEffect(() => {
@@ -114,6 +118,20 @@ export default function BillingSection() {
   }
 
   const card = { backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }
+
+  // Until /api/firm/billing resolves, show a neutral placeholder instead of the
+  // default state (which would flash "0 clients active" and an enabled billing UI).
+  if (!loaded) {
+    return (
+      <div className="rounded-xl border p-5 mb-6" style={card}>
+        <div className="flex items-center gap-2 mb-3">
+          <CreditCard size={16} style={{ color: 'var(--color-info)' }} />
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Plan &amp; billing</h2>
+        </div>
+        <p className="text-xs animate-pulse" style={{ color: 'var(--color-text-muted)' }}>Loading billing…</p>
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-xl border p-5 mb-6" style={card}>
