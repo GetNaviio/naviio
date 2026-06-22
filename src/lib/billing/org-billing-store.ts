@@ -94,8 +94,16 @@ export async function getOwnerBillingOrg(
   return rows[0] ?? null
 }
 
-/** The owner's effective plan: their billing org's plan, else the highest owned. */
+/** The owner's effective plan: the plan of their billing ANCHOR (the org with
+ *  the active Stripe subscription) — the single source of truth. Falls back to
+ *  the highest owned-org plan only when there is no subscription. */
 export async function getOwnerPlan(userId: string): Promise<Plan> {
+  // Using the anchor (not the MAX across orgs) prevents a single stray org on a
+  // higher tier from inflating the account plan — which previously made every
+  // new entity inherit it (e.g. adding a 4th org "upgrading" Pro → CFO Suite).
+  const anchor = await getOwnerBillingOrg(userId)
+  if (anchor?.plan) return anchor.plan
+
   const rows = await prisma.$queryRaw<Array<{ plan: Plan }>>(Prisma.sql`
     SELECT "plan"::text AS plan FROM "Organization" WHERE "userId" = ${userId}
   `)

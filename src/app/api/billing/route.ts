@@ -22,7 +22,10 @@ export const GET = withOrg(async (_request, { user, orgId }) => {
     isFirmUser(user.id),
   ])
   const isOwner = isOwnerRole === 'OWNER'
-  const current = billing?.plan ?? 'STARTER'
+  // The displayed plan is the owner's billing-anchor (subscription) plan — the
+  // single source of truth — so switching into a freshly-created entity (whose
+  // own `plan` column may differ) never misreports the plan.
+  const current = anchor?.plan ?? billing?.plan ?? 'STARTER'
 
   // Keep the subscription quantity (= entity count) current as the roster changes.
   if (anchor?.subscriptionId && isPlanBillingConfigured()) {
