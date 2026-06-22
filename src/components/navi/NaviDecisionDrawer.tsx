@@ -10,6 +10,7 @@
 import { useState } from 'react'
 import { X, CheckCircle2, XCircle, AlertCircle, Check, Sparkles, Target, Download, SlidersHorizontal, Loader2 } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import AiDisclaimer from '@/components/AiDisclaimer'
 import type { DecisionAnswer, DecisionTemplate } from '@/lib/decisions/types'
 
 const OUTCOME_LABEL: Record<string, string> = { proceeded: 'Went ahead', deferred: 'Holding off', declined: "Didn't" }
@@ -321,6 +322,7 @@ export default function NaviDecisionDrawer({ answer, question, decisionId, param
           )}
           <p>{ans.provenance} · Confidence: {ans.confidence}.</p>
           <p>{ans.disclaimer}</p>
+          <AiDisclaimer className="pt-1" />
         </div>
       </div>
 

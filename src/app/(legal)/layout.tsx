@@ -15,7 +15,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
         </Link>
         <main style={{ marginTop: '2rem' }}>{children}</main>
         <footer style={{ marginTop: '4rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', color: '#64748B', fontSize: 13 }}>
-          © 2026 Naviio, Inc. · <Link href="/privacy" style={{ color: '#64748B' }}>Privacy</Link> · <Link href="/terms" style={{ color: '#64748B' }}>Terms</Link> · <Link href="/data-deletion" style={{ color: '#64748B' }}>Data deletion</Link>
+          © 2026 Naviio, Inc. · <Link href="/security" style={{ color: '#64748B' }}>Security</Link> · <Link href="/privacy" style={{ color: '#64748B' }}>Privacy</Link> · <Link href="/terms" style={{ color: '#64748B' }}>Terms</Link> · <Link href="/data-deletion" style={{ color: '#64748B' }}>Data deletion</Link>
         </footer>
       </div>
     </div>

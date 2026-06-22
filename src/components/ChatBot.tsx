@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { MessageSquare, X, Send, Bot, Sparkles, TrendingUp, DollarSign, PieChart, Calendar, RotateCcw, Mic, ArrowRight, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import AiDisclaimer from '@/components/AiDisclaimer'
 import { useVoiceInput } from '@/hooks/useVoiceInput'
 import { cleanNaviText } from '@/lib/naviFormat'
 import { parseDecisionQuestion, extractSlots, missingParams } from '@/lib/decisions/parse'
@@ -553,6 +554,7 @@ export default function ChatBot() {
               )}
             </div>
           )}
+          <AiDisclaimer className="mt-2 px-1" />
         </div>
       </div>
 

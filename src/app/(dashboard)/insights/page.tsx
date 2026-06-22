@@ -11,6 +11,7 @@ import {
   Calendar,
   RefreshCw,
 } from 'lucide-react'
+import AiDisclaimer from '@/components/AiDisclaimer'
 
 interface Message {
   id: string
@@ -356,6 +357,7 @@ export default function InsightsPage() {
         <p className="text-center text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
           Press Enter to send · Shift+Enter for new line
         </p>
+        <AiDisclaimer className="justify-center mt-1.5" />
       </div>
     </div>
   )

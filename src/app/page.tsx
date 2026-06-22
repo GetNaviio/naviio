@@ -570,6 +570,7 @@ export default function LandingPage() {
         <img src="/naviio-logo.png" alt="Naviio" className="footer-logo" />
         <div className="footer-copy">© 2026 Naviio. All rights reserved.</div>
         <div className="footer-links">
+          <a href="/security">Security</a>
           <button type="button" onClick={() => setLegalDoc('privacy')}>Privacy</button>
           <button type="button" onClick={() => setLegalDoc('terms')}>Terms</button>
           <button type="button" onClick={() => setLegalDoc('contact')}>Contact</button>
