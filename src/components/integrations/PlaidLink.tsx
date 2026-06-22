@@ -100,7 +100,7 @@ export default function PlaidLinkButton({
       setLinkToken(null)
       localStorage.removeItem(PLAID_LINK_TOKEN_KEY)
     }
-  }, [onSuccess, updateMode])
+  }, [onSuccess])
 
   // Full reset to a retryable state. Called from BOTH onExit and the EXIT
   // event (belt and braces): if either callback is dropped — e.g. the modal is
