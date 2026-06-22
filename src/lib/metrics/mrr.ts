@@ -6,6 +6,10 @@
 
 export interface SubMrr {
   subscriptionId: string
+  /** When present, retention is measured per CUSTOMER (a customer who swaps one
+   *  subscription for another nets flat instead of booking churn + new). Falls
+   *  back to subscriptionId when absent. */
+  customerId?: string | null
   mrr: number
   cohortMonth?: string
 }
@@ -23,13 +27,25 @@ export interface Waterfall {
 const round2 = (n: number) => Math.round(n * 100) / 100
 const sum = (xs: SubMrr[]) => xs.reduce((s, x) => s + x.mrr, 0)
 
+/** Group rows by customer (or subscription when no customerId), summing MRR — so
+ *  movement is classified per CUSTOMER, the correct unit for NRR. */
+function aggregateByCustomer(rows: SubMrr[]): Map<string, number> {
+  const m = new Map<string, number>()
+  for (const s of rows) {
+    const key = s.customerId ?? s.subscriptionId
+    m.set(key, (m.get(key) ?? 0) + s.mrr)
+  }
+  return m
+}
+
 /**
  * Decompose the change in MRR between two periods into new / expansion /
- * contraction / churned, by matching subscriptions across the periods.
+ * contraction / churned, matching by CUSTOMER across the periods (so a customer
+ * who downgrades one sub and adds another nets out instead of double-booking).
  */
 export function mrrWaterfall(prev: SubMrr[], curr: SubMrr[]): Waterfall {
-  const prevMap = new Map(prev.map((s) => [s.subscriptionId, s.mrr]))
-  const currMap = new Map(curr.map((s) => [s.subscriptionId, s.mrr]))
+  const prevMap = aggregateByCustomer(prev)
+  const currMap = aggregateByCustomer(curr)
 
   let newMrr = 0, expansionMrr = 0, contractionMrr = 0, churnedMrr = 0
   for (const [id, m] of currMap) {

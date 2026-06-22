@@ -48,8 +48,10 @@ Code-grounded accounting review of the financial engine (cash basis, for startup
   `price.tiers` is expanded (documented). (`stripe.ts` + tests)
 - **P1-8 cashFlow is Plaid-only** — Stripe-only or accounting-only orgs show 0
   burn / Liquidity 95. Derive cash flow from the primary source or gate runway.
-- **P1-9 Cohort/NRR match by subscription, not customer** — re-signed/multi-sub
-  customers book false churn + new, contaminating NRR.
+- ✅ **P1-9 Per-customer NRR** — `mrrWaterfall` now aggregates MRR by customer
+  before matching (snapshot `customerId` threaded through), so a customer who
+  swaps/adds subscriptions nets to expansion/contraction instead of false
+  churn + new. (`mrr.ts` + route + tests)
 
 ### Open — P2
 - UTC vs local month boundaries; `getRevenueByMonth` partial earliest bucket +

@@ -27,13 +27,16 @@ export async function GET() {
     const [curr, prev] = [periods[0], periods[1]]
     const rows = await prisma.mrrSnapshot.findMany({
       where: { orgId, period: { in: [curr, prev] } },
-      select: { period: true, subscriptionId: true, mrr: true, cohortMonth: true },
+      select: { period: true, subscriptionId: true, customerId: true, mrr: true, cohortMonth: true },
     })
 
     // Only paying rows (mrr > 0) count as "present" — so a subscription that
     // dropped to 0 MRR (canceled) is treated as churned, not contraction.
+    // customerId is passed so retention is measured per customer, not per sub.
     const toSub = (period: string): SubMrr[] =>
-      rows.filter((r) => r.period === period && r.mrr > 0).map((r) => ({ subscriptionId: r.subscriptionId, mrr: r.mrr }))
+      rows
+        .filter((r) => r.period === period && r.mrr > 0)
+        .map((r) => ({ subscriptionId: r.subscriptionId, customerId: r.customerId, mrr: r.mrr }))
 
     const w = mrrWaterfall(toSub(prev), toSub(curr))
 

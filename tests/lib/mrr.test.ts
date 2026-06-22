@@ -29,6 +29,26 @@ describe('mrrWaterfall', () => {
     expect(w.startMrr + w.netNewMrr).toBeCloseTo(w.endMrr, 2)
   })
 
+  it('matches per customer: swapping subscriptions nets flat, not churn + new (P1-9)', () => {
+    // Same customer cust1 cancels sub s1 ($100) and signs sub s2 ($100).
+    const p: SubMrr[] = [{ subscriptionId: 's1', customerId: 'cust1', mrr: 100 }]
+    const c: SubMrr[] = [{ subscriptionId: 's2', customerId: 'cust1', mrr: 100 }]
+    const w = mrrWaterfall(p, c)
+    expect(w.churnedMrr).toBe(0)
+    expect(w.newMrr).toBe(0)
+    expect(w.netNewMrr).toBe(0)
+  })
+
+  it('per customer: net upgrade across two subs counts as expansion only', () => {
+    // cust1: drop s1 $100, add s2 $150 → +$50 expansion, no churn/new.
+    const p: SubMrr[] = [{ subscriptionId: 's1', customerId: 'cust1', mrr: 100 }]
+    const c: SubMrr[] = [{ subscriptionId: 's2', customerId: 'cust1', mrr: 150 }]
+    const w = mrrWaterfall(p, c)
+    expect(w.expansionMrr).toBe(50)
+    expect(w.churnedMrr).toBe(0)
+    expect(w.newMrr).toBe(0)
+  })
+
   it('computes NRR from existing customers only (excludes new)', () => {
     const w = mrrWaterfall(prev, curr)
     // (350 + 50 - 80 - 50) / 350 = 77.14%
