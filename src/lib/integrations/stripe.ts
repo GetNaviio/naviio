@@ -133,19 +133,48 @@ function periodMonths(interval: string | undefined, count: number): number {
 }
 
 /**
- * Per-subscription monthly MRR (major units). Honors interval_count and weekly/
- * daily plans, and returns 0 for non-paying statuses so churn/cohort math is
- * correct.
+ * Active discount on a subscription as a monthly adjustment: a multiplicative
+ * factor (percent_off) and a flat monthly cents reduction (amount_off, prorated
+ * to a month by `monthsForAmountOff`). One-time ('once') coupons are ignored —
+ * they don't reduce ongoing MRR. Reads `discounts[0]` (or legacy `discount`).
  */
-function subscriptionMrr(sub: Stripe.Subscription): number {
+function subscriptionDiscount(
+  sub: Stripe.Subscription,
+  monthsForAmountOff: number,
+): { factor: number; monthlyOffCents: number } {
+  const d = sub as unknown as {
+    discount?: { coupon?: Stripe.Coupon } | null
+    discounts?: Array<string | { coupon?: Stripe.Coupon }> | null
+  }
+  const first = d.discount ?? (Array.isArray(d.discounts) ? d.discounts.find((x) => typeof x !== 'string') : null)
+  const coupon = first && typeof first !== 'string' ? first.coupon : null
+  if (!coupon || coupon.duration === 'once') return { factor: 1, monthlyOffCents: 0 }
+  const factor = coupon.percent_off ? 1 - coupon.percent_off / 100 : 1
+  const months = monthsForAmountOff > 0 ? monthsForAmountOff : 1
+  const monthlyOffCents = coupon.amount_off ? coupon.amount_off / months : 0
+  return { factor, monthlyOffCents }
+}
+
+/**
+ * Per-subscription monthly MRR (major units). Honors interval_count and weekly/
+ * daily plans, applies recurring coupons (percent_off / amount_off), and returns
+ * 0 for non-paying statuses so churn/cohort math is correct. NOTE: tiered/usage
+ * prices (null unit_amount) contribute 0 until `price.tiers` is expanded.
+ */
+export function subscriptionMrr(sub: Stripe.Subscription): number {
   if (!PAYING_STATUSES.has(sub.status)) return 0
-  const cents = sub.items.data.reduce((s, item) => {
+  const grossCents = sub.items.data.reduce((s, item) => {
     const amt = item.price.unit_amount ?? 0
     const qty = item.quantity ?? 1
     const months = periodMonths(item.price.recurring?.interval, item.price.recurring?.interval_count ?? 1)
     return s + (months > 0 ? (amt * qty) / months : 0)
   }, 0)
-  return cents / 100
+  // Prorate any amount_off coupon to a month using the first item's period.
+  const firstItem = sub.items.data[0]
+  const offMonths = periodMonths(firstItem?.price.recurring?.interval, firstItem?.price.recurring?.interval_count ?? 1)
+  const { factor, monthlyOffCents } = subscriptionDiscount(sub, offMonths)
+  const netCents = Math.max(grossCents * factor - monthlyOffCents, 0)
+  return netCents / 100
 }
 
 /** Monthly recurring revenue (major units) from active subscriptions, + ARR. */
@@ -236,28 +265,52 @@ export async function fetchRevenue(orgId: string, days = 30) {
 }
 
 /**
- * Monthly churn rate over the period: cancellations in the window divided by the
- * subscriber base at the start of the window (approximated as active-now plus
- * those cancelled during the window). Returns a 0–1 rate.
+ * Logo churn rate (pure): cancellations in the window ÷ the subscriber base at the
+ * START of the window. Start base = active now − joined during window + cancelled
+ * during window. Returns 0–1; 0 when the start base is empty.
+ */
+export function logoChurnRate(activeNow: number, joinedInWindow: number, canceledInWindow: number): number {
+  const baseAtStart = activeNow - joinedInWindow + canceledInWindow
+  if (baseAtStart <= 0) return 0
+  return canceledInWindow / baseAtStart
+}
+
+/**
+ * Monthly logo churn over the period. Cancellations are filtered by when they
+ * ACTUALLY cancelled (`canceled_at`/`ended_at`) — Stripe can't query that
+ * server-side, so we list cancelled subs and filter in code — not by `created`
+ * (which is the join date and systematically undercounts churn). The base is the
+ * start-of-window subscriber count, not active+cancelled.
  */
 export async function getChurnRate(orgId: string, days = 30): Promise<number | null> {
+  const c = await churnCounts(orgId, days)
+  if (!c) return null
+  return logoChurnRate(c.activeNow, c.joinedInWindow, c.canceledInWindow)
+}
+
+/** Shared counts for churn: active now, joined-in-window, cancelled-in-window. */
+async function churnCounts(orgId: string, days: number) {
   const stripe = await getStripeForUser(orgId)
   if (!stripe) return null
-  let activeCount = 0
-  let canceledCount = 0
-  for await (const _ of stripe.subscriptions.list({ status: 'active', limit: 100 })) { void _; activeCount++ }
-  for await (const _ of stripe.subscriptions.list({ status: 'canceled', created: { gte: sinceTs(days) }, limit: 100 })) { void _; canceledCount++ }
-  const base = activeCount + canceledCount
-  if (base === 0) return 0
-  return canceledCount / base
+  const windowStart = sinceTs(days)
+  let activeNow = 0
+  let joinedInWindow = 0
+  for await (const sub of stripe.subscriptions.list({ status: 'active', limit: 100 })) {
+    activeNow++
+    if ((sub.start_date ?? sub.created) >= windowStart) joinedInWindow++
+  }
+  let canceledInWindow = 0
+  for await (const sub of stripe.subscriptions.list({ status: 'canceled', limit: 100 })) {
+    const ended = sub.canceled_at ?? sub.ended_at
+    if (ended && ended >= windowStart) canceledInWindow++
+  }
+  return { activeNow, joinedInWindow, canceledInWindow }
 }
 
 export async function fetchChurn(orgId: string, days = 30) {
-  const stripe = await getStripeForUser(orgId)
-  if (!stripe) return null
-  let canceledCount = 0
-  for await (const _ of stripe.subscriptions.list({ status: 'canceled', created: { gte: sinceTs(days) }, limit: 100 })) { void _; canceledCount++ }
-  return { canceledCount }
+  const c = await churnCounts(orgId, days)
+  if (!c) return null
+  return { canceledCount: c.canceledInWindow }
 }
 
 /**

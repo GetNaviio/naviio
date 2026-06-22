@@ -40,10 +40,12 @@ Code-grounded accounting review of the financial engine (cash basis, for startup
   Guard/flag mixed currency or convert via FX; don't blend.
 - **P1-5 Fee currency** — fee uses settlement currency, charge uses presentment;
   bridge subtracts unlike units when they differ.
-- **P1-6 Churn** — denominator omits the start-of-period base correction and the
-  cancel filter uses `created` not `canceled_at` (systematically too low); logo vs
-  revenue churn mixed into LTV.
-- **P1-7 MRR ignores coupons/discounts/proration/tiered (null unit_amount)**.
+- ✅ **P1-6 Churn** — now filters cancellations by `canceled_at`/`ended_at` (not
+  `created`) and divides by the start-of-window base (active − joined + cancelled),
+  via a pure `logoChurnRate`. (`stripe.ts` + tests)
+- ✅ **P1-7 MRR coupons** — `subscriptionMrr` applies recurring percent_off /
+  amount_off coupons (one-time coupons ignored); tiered/usage prices still 0 until
+  `price.tiers` is expanded (documented). (`stripe.ts` + tests)
 - **P1-8 cashFlow is Plaid-only** — Stripe-only or accounting-only orgs show 0
   burn / Liquidity 95. Derive cash flow from the primary source or gate runway.
 - **P1-9 Cohort/NRR match by subscription, not customer** — re-signed/multi-sub
