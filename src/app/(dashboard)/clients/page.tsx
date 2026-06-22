@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/layout/Header'
 import BillingSection from '@/components/firm/BillingSection'
+import FirmTeamSection from '@/components/firm/FirmTeamSection'
 import { Users, UserPlus, Copy, Check, ArrowRight, Building2, Clock, Banknote } from 'lucide-react'
 
 interface Client {
@@ -112,6 +113,9 @@ export default function ClientsPage() {
 
         {/* Plan & billing */}
         <BillingSection />
+
+        {/* Firm team (Partner / Analyst tiers) */}
+        <FirmTeamSection />
 
         {/* Add client */}
         <div className="rounded-xl border p-5 mb-6" style={card}>

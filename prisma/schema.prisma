@@ -343,8 +343,33 @@ model Firm {
 
   clients       Organization[]
   clientInvites ClientInvite[]
+  members       FirmMember[]
 
   @@index([ownerUserId])
+}
+
+// Firm-level RBAC. The Firm.ownerUserId is implicitly a PARTNER and has no row
+// here. Additional team members get a FirmMember row with their tier:
+//   PARTNER — full firm access: billing, branding, Stripe Connect, the whole
+//             client book, and managing the team.
+//   ANALYST — works client orgs (analytical access) but NOT firm admin/billing.
+// (Client visibility is the existing org-level OWNER role: clients own their org.)
+enum FirmRole {
+  PARTNER
+  ANALYST
+}
+
+model FirmMember {
+  id        String   @id @default(cuid())
+  firmId    String
+  userId    String
+  role      FirmRole @default(ANALYST)
+  createdAt DateTime @default(now())
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@unique([firmId, userId])
+  @@index([userId])
 }
 
 /**

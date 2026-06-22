@@ -28,6 +28,7 @@ export async function isFirmUser(userId: string): Promise<boolean> {
   const rows = await prisma.$queryRaw<Array<{ ok: boolean }>>(Prisma.sql`
     SELECT (
       EXISTS (SELECT 1 FROM "Firm" WHERE "ownerUserId" = ${userId})
+      OR EXISTS (SELECT 1 FROM "FirmMember" WHERE "userId" = ${userId})
       OR EXISTS (SELECT 1 FROM "OrgMember" WHERE "userId" = ${userId} AND "role"::text = 'ADVISOR')
     ) AS ok
   `)
