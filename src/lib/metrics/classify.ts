@@ -63,9 +63,13 @@ const CAPITAL_PFC = new Set(['LOAN_PAYMENTS'])
 // against Stripe `payouts.list` by amount/date — tracked as a follow-up.
 const STRIPE_PAYOUT_RE = /\bstripe\b/i
 
-/** A Stripe payout that has landed in the bank — already counted as Stripe revenue. */
+/** A Stripe payout that has landed in the bank — already counted as Stripe revenue.
+ *  STRONG signal: the row was reconciled to a real Stripe payout (amount + date)
+ *  and tagged STRIPE_PAYOUT upstream. WEAK fallback: a "stripe" description match,
+ *  used only when no payout data was available (it both misses and over-matches). */
 export function isStripePayout(t: LedgerTxn): boolean {
   if (t.source !== 'plaid' || t.type !== 'CREDIT') return false
+  if ((t.category ?? '').toUpperCase() === 'STRIPE_PAYOUT') return true // reconciled match
   const text = `${t.description ?? ''} ${t.merchantName ?? ''}`
   return STRIPE_PAYOUT_RE.test(text)
 }

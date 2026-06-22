@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma'
-import type { IntegrationProvider } from '@prisma/client'
+import { Prisma, type IntegrationProvider } from '@prisma/client'
 import type { DatedLedgerTxn } from './compute'
 import { VENDOR_OVERRIDE_PREFIX, type CategoryOverrides } from './classify'
+import { reconcileStripePayouts, type PayoutRef } from './stripe-payout-reconcile'
 
 /**
  * Load an org's normalized transaction ledger (Plaid + Stripe + any synced
@@ -100,7 +101,26 @@ export function primaryLedger<T extends { source: string }>(txns: T[]): T[] {
  * across the metrics, P&L, model, commentary, and insights routes.
  */
 export async function loadPrimaryLedger(orgId: string, since?: Date): Promise<DatedLedgerTxn[]> {
-  return primaryLedger(await loadLedger(orgId, since))
+  const ledger = primaryLedger(await loadLedger(orgId, since))
+  // Reconcile bank deposits against real Stripe payouts so a payout isn't counted
+  // as revenue twice (it's already counted as the underlying charges).
+  const payouts = await loadStripePayouts(orgId, since)
+  return reconcileStripePayouts<DatedLedgerTxn>(ledger, payouts)
+}
+
+/** Stripe payouts for the window. Resilient: returns [] if the table isn't
+ *  migrated yet, so reconciliation degrades to the description fallback rather
+ *  than breaking the whole metrics pipeline. */
+async function loadStripePayouts(orgId: string, since?: Date): Promise<PayoutRef[]> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ amountCents: number; arrivalDate: Date }>>(Prisma.sql`
+      SELECT "amountCents", "arrivalDate" FROM "StripePayout"
+      WHERE "orgId" = ${orgId}${since ? Prisma.sql` AND "arrivalDate" >= ${since}` : Prisma.empty}
+    `)
+    return rows.map((r) => ({ amountCents: Number(r.amountCents), arrivalDate: r.arrivalDate }))
+  } catch {
+    return []
+  }
 }
 
 /**

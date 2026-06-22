@@ -400,6 +400,22 @@ model ClientInvite {
   @@index([clientEmail])
 }
 
+// Stripe payouts that settled into the connected bank. Used to reconcile bank
+// deposits (Plaid) against payouts by amount + arrival date, so a Stripe payout
+// isn't counted as revenue a second time (it's already counted as the underlying
+// charges). amountCents is the net payout amount.
+model StripePayout {
+  id          String   @id @default(cuid())
+  orgId       String
+  payoutId    String // Stripe po_...
+  amountCents Int
+  arrivalDate DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([orgId, payoutId])
+  @@index([orgId, arrivalDate])
+}
+
 /**
  * Lightweight access audit: who (actorUserId) touched which client org (orgId)
  * and what they did (action). Powers the advisor-access transparency trail the

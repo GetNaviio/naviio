@@ -1,4 +1,6 @@
 import Stripe from 'stripe'
+import { randomUUID } from 'crypto'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import * as cache from '@/lib/cache'
 import { mapStripeCharge, mapStripeFee } from './stripe-map'
@@ -417,6 +419,22 @@ export async function syncStripeData(orgId: string): Promise<StripeMetrics | nul
     } catch (err) {
       console.error('[stripe] charge persistence failed:', errMsg(err))
     }
+    // Persist payouts so bank deposits can be reconciled against them (a payout
+    // landing in the bank must not be counted as revenue a second time). Raw SQL
+    // + best-effort; never blocks the sync. Resilient if the table isn't migrated.
+    try {
+      for await (const po of stripe.payouts.list({ arrival_date: { gte: sinceTs(90) }, limit: 100 })) {
+        const arrival = new Date(po.arrival_date * 1000)
+        await prisma.$executeRaw(Prisma.sql`
+          INSERT INTO "StripePayout" ("id", "orgId", "payoutId", "amountCents", "arrivalDate", "createdAt")
+          VALUES (${randomUUID()}, ${orgId}, ${po.id}, ${po.amount}, ${arrival}, now())
+          ON CONFLICT ("orgId", "payoutId") DO UPDATE SET "amountCents" = ${po.amount}, "arrivalDate" = ${arrival}
+        `)
+      }
+    } catch (err) {
+      console.error('[stripe] payout sync failed (continuing):', errMsg(err))
+    }
+
     await prisma.integration.update({
       where: { id: integration.id },
       data: { lastSyncedAt: new Date(), status: 'CONNECTED' },

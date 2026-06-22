@@ -18,12 +18,11 @@ Code-grounded accounting review of the financial engine (cash basis, for startup
   hitting revenue/expense. (`c8534cd`)
 
 ### Open — P0 (do first)
-- **P0-4 Stripe payout dedup is regex-on-"stripe"** (`classify.ts:64,67`). Misses
-  payouts many banks label differently → **double-counts the top line** (charge +
-  bank deposit); also over-excludes unrelated "stripe" credits. **Fix:** reconcile
-  bank CREDITs against `stripe.payouts.list` by amount + arrival_date (±days),
-  one-to-one; keep regex only as a weak fallback. Needs a persisted payout set
-  (DB) + live Plaid+Stripe data to validate. Highest material risk.
+- ✅ **P0-4 Stripe payout dedup** — now reconciles bank CREDITs against real
+  `stripe.payouts.list` by amount + arrival date (±4d, one-to-one), persisted in a
+  new `StripePayout` table; the description regex is demoted to a weak fallback
+  used only when no payout data exists. Needs the migration applied + live data to
+  validate. (matcher + tests; `StripePayout` migration `20260622010000`)
 - **P0-3 Annual/upfront subs recognized 100% on charge date, contradicting MRR.**
   Cash-basis-defensible, but the same annual customer shows $12k income in month 1
   AND $1k/mo MRR with no reconciliation. **Fix:** either ratable recognition
