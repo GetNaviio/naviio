@@ -93,10 +93,21 @@ export async function exchangePublicToken(orgId: string, publicToken: string) {
   // org, remove the old one at Plaid before the upsert overwrites it — otherwise
   // the previous Item is orphaned and keeps billing. Reconnecting the SAME Item
   // (same item_id) skips this. The prior access token is decrypted transparently.
-  const prior = await prisma.integration.findUnique({
-    where: { orgId_provider: { orgId, provider: 'PLAID' } },
-    select: { accessToken: true, itemId: true },
-  })
+  //
+  // This cleanup is best-effort and must NEVER block storing the new connection.
+  // If the prior token can't even be decrypted (e.g. TOKEN_ENCRYPTION_KEY was
+  // rotated), skip the cleanup and proceed — otherwise completing Plaid Link
+  // would 500 and the new connection would never be saved.
+  let prior: { accessToken: string | null; itemId: string | null } | null = null
+  try {
+    prior = await prisma.integration.findUnique({
+      where: { orgId_provider: { orgId, provider: 'PLAID' } },
+      select: { accessToken: true, itemId: true },
+    })
+  } catch (err) {
+    console.error('[plaid] could not read prior item for cleanup (continuing with new connection):', errMsg(err))
+    prior = null
+  }
   if (prior?.accessToken && prior.itemId && prior.itemId !== itemId) {
     try {
       await client.itemRemove({ access_token: prior.accessToken })
