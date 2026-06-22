@@ -148,11 +148,17 @@ export function cashFlow(txns: DatedLedgerTxn[], from?: Date, to?: Date, categor
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, v]) => ({ month, cashIn: round2(v.cashIn), cashOut: round2(v.cashOut), net: round2(v.cashIn - v.cashOut) }))
 
-  // Burn = average monthly net OUTFLOW over the observed months (0 if cash-positive).
-  const negativeMonths = byMonth.filter((m) => m.net < 0)
-  const burnRate = negativeMonths.length
-    ? round2(Math.abs(negativeMonths.reduce((s, m) => s + m.net, 0)) / negativeMonths.length)
+  // Net burn = the average monthly net cash OUTFLOW over the trailing COMPLETE
+  // months — cash-positive/break-even months INCLUDED (averaging only the
+  // negative months cherry-picks and overstates burn / shortens runway). The
+  // most-recent month is usually partial, so it's excluded from the average when
+  // older months exist. A net cash-generating window yields 0 burn.
+  const completeMonths = byMonth.length > 1 ? byMonth.slice(0, -1) : byMonth
+  const burnWindow = completeMonths.slice(-3) // trailing 3 complete months
+  const avgNet = burnWindow.length
+    ? burnWindow.reduce((s, m) => s + m.net, 0) / burnWindow.length
     : 0
+  const burnRate = avgNet < 0 ? round2(-avgNet) : 0
 
   return {
     cashIn: round2(cashIn),

@@ -80,10 +80,17 @@ function isTransfer(t: LedgerTxn): boolean {
 // it's financing, not a P&L expense, so exclude it (mirrors the LOAN_PAYMENTS PFC).
 const CAPITAL_DESC_RE = /\b(credit\s?card.*payment|cardmember|card\s?member|cc payment|payment\s*-?\s*thank\s?you|loan payment|mortgage)\b/i
 
+// Owner/equity movements — draws, distributions, and capital contributions are
+// EQUITY events, never P&L. An owner draw (DEBIT) would otherwise be booked as an
+// expense and a capital contribution (CREDIT) as revenue, corrupting net income
+// and burn. Excluded from the P&L but kept in cash flow (real bank cash moved).
+const EQUITY_DESC_RE = /\b(owner'?s?\s+(draw|distribution|contribution|investment)|member'?s?\s+draw|shareholder\s+(distribution|contribution|loan)|capital\s+(contribution|call|investment)|distribution\s+to\s+(owner|member|partner|shareholder))\b/i
+
 function isCapital(t: LedgerTxn): boolean {
   const c = (t.category ?? '').toUpperCase()
   if (CAPITAL_PFC.has(c)) return true
-  return CAPITAL_DESC_RE.test(`${t.description ?? ''} ${t.merchantName ?? ''}`)
+  const text = `${t.description ?? ''} ${t.merchantName ?? ''}`
+  return CAPITAL_DESC_RE.test(text) || EQUITY_DESC_RE.test(text)
 }
 
 // Map a Plaid PFC primary → a human-friendly expense category for the UI.
