@@ -17,6 +17,7 @@ export function mapStripeCharge(
   c: Stripe.Charge,
 ): Prisma.TransactionUncheckedCreateInput {
   const netCents = Math.max((c.amount ?? 0) - (c.amount_refunded ?? 0), 0)
+  const win = recognitionWindow(c)
   return {
     orgId,
     integrationId,
@@ -30,7 +31,32 @@ export function mapStripeCharge(
     accountId: null,
     type: 'CREDIT',
     source: 'stripe',
+    // Multi-month subscription → recognize revenue ratably across the service
+    // period (deferred revenue). NULL for monthly/one-time charges. Cast: the
+    // generated client picks up recognition* after `prisma generate`.
+    recognitionStart: win?.start ?? null,
+    recognitionEnd: win?.end ?? null,
+  } as Prisma.TransactionUncheckedCreateInput
+}
+
+const RECOGNITION_MIN_DAYS = 45 // longer than a month ⇒ spread (annual / quarterly)
+
+/**
+ * The service period a subscription charge covers, from the longest invoice line
+ * period (`expand: ['data.invoice']`). Returns null for one-time charges, charges
+ * with no invoice, or single-month periods — those recognize on the charge date.
+ */
+function recognitionWindow(c: Stripe.Charge): { start: Date; end: Date } | null {
+  const inv = (c as unknown as { invoice?: string | Stripe.Invoice | null }).invoice
+  if (!inv || typeof inv === 'string') return null // not expanded / no invoice
+  let best: { s: number; e: number } | null = null
+  for (const line of inv.lines?.data ?? []) {
+    const p = line.period
+    if (!p?.start || !p?.end || p.end <= p.start) continue
+    if (!best || p.end - p.start > best.e - best.s) best = { s: p.start, e: p.end }
   }
+  if (!best || (best.e - best.s) / 86_400 <= RECOGNITION_MIN_DAYS) return null
+  return { start: new Date(best.s * 1000), end: new Date(best.e * 1000) }
 }
 
 /**

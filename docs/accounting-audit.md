@@ -23,11 +23,12 @@ Code-grounded accounting review of the financial engine (cash basis, for startup
   new `StripePayout` table; the description regex is demoted to a weak fallback
   used only when no payout data exists. Needs the migration applied + live data to
   validate. (matcher + tests; `StripePayout` migration `20260622010000`)
-- **P0-3 Annual/upfront subs recognized 100% on charge date, contradicting MRR.**
-  Cash-basis-defensible, but the same annual customer shows $12k income in month 1
-  AND $1k/mo MRR with no reconciliation. **Fix:** either ratable recognition
-  (deferred revenue) or clearly label/disclose "cash collections (gross billings)"
-  and reconcile to MRR.
+- ✅ **P0-3 Ratable revenue recognition (deferred revenue)** — multi-month
+  subscription charges now recognize revenue straight-line across the Stripe
+  invoice service period instead of 100% on the charge date; `deferredRevenue`
+  surfaced on the income statement. Annual plans now agree with MRR. Monthly/
+  one-time/expenses unchanged. (recognition window cols + transform + tests;
+  migration `20260622020000`, decision 0057)
 
 ### Open — P1
 - **P1-1 Loan interest dropped** — loan payments excluded whole (principal correct,

@@ -10,7 +10,10 @@ import { reconcileStripePayouts, type PayoutRef } from './stripe-payout-reconcil
  * classifier/compute functions need.
  */
 export async function loadLedger(orgId: string, since?: Date): Promise<DatedLedgerTxn[]> {
-  const rows = await prisma.transaction.findMany({
+  // Select is built as a plain object + cast so the new recognition* columns
+  // compile before `prisma generate` runs on the build host (the sandbox can't
+  // fetch the engine to regenerate). The result is cast to the concrete row shape.
+  const findArgs = {
     where: { orgId, ...(since ? { date: { gte: since } } : {}) },
     select: {
       source: true,
@@ -23,9 +26,27 @@ export async function loadLedger(orgId: string, since?: Date): Promise<DatedLedg
       // Stable provider id — the key user classification tags (TxnClassification)
       // are stored under, so overrides can be applied consistently downstream.
       externalId: true,
+      // Revenue-recognition window (set on multi-month subscription charges) so
+      // the income statement can recognize that revenue ratably.
+      recognitionStart: true,
+      recognitionEnd: true,
     },
-    orderBy: { date: 'asc' },
-  })
+    orderBy: { date: 'asc' as const },
+  }
+  const rows = (await prisma.transaction.findMany(
+    findArgs as Parameters<typeof prisma.transaction.findMany>[0],
+  )) as unknown as Array<{
+    source: string
+    type: string
+    amount: number
+    category: string | null
+    description: string
+    merchantName: string | null
+    date: Date
+    externalId: string
+    recognitionStart: Date | null
+    recognitionEnd: Date | null
+  }>
   return rows.map((r) => ({
     source: r.source,
     type: r.type as 'CREDIT' | 'DEBIT',
@@ -35,6 +56,8 @@ export async function loadLedger(orgId: string, since?: Date): Promise<DatedLedg
     merchantName: r.merchantName,
     date: r.date,
     externalId: r.externalId,
+    recognitionStart: r.recognitionStart,
+    recognitionEnd: r.recognitionEnd,
   }))
 }
 

@@ -603,6 +603,13 @@ model Transaction {
   accountId     String?
   type          TransactionType
   source        String
+  // Revenue-recognition service window. When a subscription charge covers a
+  // multi-month period (annual/quarterly), revenue is recognized ratably across
+  // [recognitionStart, recognitionEnd] instead of 100% on the charge date
+  // (deferred revenue). NULL → recognized immediately on `date` (monthly plans,
+  // one-time charges, all expenses).
+  recognitionStart DateTime?
+  recognitionEnd   DateTime?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @default(now()) @updatedAt
 

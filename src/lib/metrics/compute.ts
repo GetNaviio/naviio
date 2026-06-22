@@ -4,6 +4,7 @@
  * is deterministic and unit-tested.
  */
 import { classifyWithOverride, resolveVendorCategories, resolveTxnCategory, vendorKey, type LedgerTxn, type CategoryOverrides, type CommunityPrior } from './classify'
+import { expandRevenueRecognition, deferredRevenueAsOf } from './revenue-recognition'
 
 /** The user's explicit override for a row (per-transaction wins over per-vendor), or null. */
 function userOverrideFor(
@@ -20,6 +21,10 @@ export interface DatedLedgerTxn extends LedgerTxn {
   date: Date | string
   /** Stable provider id — key for user classification overrides. */
   externalId?: string
+  /** Revenue-recognition service window (subscription charges spanning >1 month).
+   *  When set, revenue is recognized ratably across it; NULL → recognized on date. */
+  recognitionStart?: Date | string | null
+  recognitionEnd?: Date | string | null
 }
 
 export interface IncomeStatement {
@@ -29,6 +34,9 @@ export interface IncomeStatement {
   netMargin: number | null            // netIncome / totalIncome
   expensesByCategory: { category: string; amount: number }[]
   byMonth: { month: string; income: number; expenses: number; net: number }[]
+  /** Cash collected but not yet earned (unrecognized portion of multi-month
+   *  subscription charges) as of the window end. 0 when no deferred revenue. */
+  deferredRevenue: number
 }
 
 export interface CashFlow {
@@ -53,11 +61,13 @@ function inWindow(d: Date | string, from?: Date, to?: Date): boolean {
 }
 
 /**
- * Income statement — CASH BASIS: revenue is recognized when cash is received
- * (Stripe charge / bank deposit) and expense when cash is paid, with transfers,
- * payouts, and loan principal excluded. This is NOT a GAAP accrual statement — it
- * has no AR/AP, deferred revenue, prepaids, depreciation, or COGS split. Surfaces
- * that show it must disclose "cash basis". Optional [from,to] window (inclusive).
+ * Income statement — MODIFIED CASH BASIS: expense is recognized when cash is
+ * paid; revenue is recognized when cash is received (Stripe charge / bank deposit)
+ * EXCEPT that a subscription charge covering a multi-month service period is
+ * recognized ratably across that period (deferred revenue) — so an annual plan
+ * shows 1/12 per month, not a lump in the billing month. Transfers, payouts, and
+ * loan principal are excluded. Still no AR/AP, prepaids, depreciation, or accrual
+ * COGS. Optional [from,to] window (inclusive).
  */
 export function incomeStatement(
   txns: DatedLedgerTxn[],
@@ -73,6 +83,12 @@ export function incomeStatement(
   let totalExpenses = 0
   const byCat = new Map<string, number>()
   const months = new Map<string, { income: number; expenses: number }>()
+
+  // Deferred revenue as of the window end (before spreading, off the raw charges).
+  const deferredRevenue = deferredRevenueAsOf(txns, to ?? new Date())
+  // Recognize multi-month subscription revenue ratably: replace each such charge
+  // with monthly slices. Monthly/one-time charges and all expenses are untouched.
+  txns = expandRevenueRecognition(txns)
 
   // One category per vendor across the whole ledger (vendor override > majority
   // signal > community prior), resolved over all rows for a stable label
@@ -116,6 +132,7 @@ export function incomeStatement(
         expenses: round2(v.expenses),
         net: round2(v.income - v.expenses),
       })),
+    deferredRevenue,
   }
 }
 

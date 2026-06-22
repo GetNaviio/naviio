@@ -403,7 +403,7 @@ export async function syncStripeData(orgId: string): Promise<StripeMetrics | nul
       // balance transaction so we can read the Stripe processing fee per charge.
       const upserts = []
       let feeCount = 0
-      for await (const c of stripe.charges.list({ created: { gte: sinceTs(90) }, limit: 100, expand: ['data.balance_transaction'] })) {
+      for await (const c of stripe.charges.list({ created: { gte: sinceTs(90) }, limit: 100, expand: ['data.balance_transaction', 'data.invoice'] })) {
         if (!c.paid) continue
         const data = mapStripeCharge(orgId, integration.id, c)  // GROSS revenue, net of refunds (ASC 606-10-32)
         upserts.push(prisma.transaction.upsert({ where: { orgId_externalId: { orgId, externalId: c.id } }, create: data, update: data }))
