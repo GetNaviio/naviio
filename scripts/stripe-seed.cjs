@@ -57,16 +57,13 @@ const NAMES = ["Acme Inc", "Globex", "Initech", "Umbrella Co", "Hooli", "Wayne C
       payment_method: "pm_card_visa",
       invoice_settings: { default_payment_method: "pm_card_visa" },
     });
+    // The subscription auto-generates the first invoice + charge ("Subscription
+    // creation"). Do NOT also create a standalone one-off charge — that double-
+    // counts revenue in the ledger (one real payment, two charges).
     await stripe.subscriptions.create({
       customer: customer.id,
       items: [{ price: price.id }],
     });
-    await stripe.charges.create({
-      amount: price.unit_amount,
-      currency: "usd",
-      source: "tok_visa",
-      description: `${NAMES[i]} — ${price.id}`,
-    }).catch(() => {});
     made++;
     console.log(`  ${NAMES[i]} → subscribed ($${price.unit_amount / 100}/mo)`);
   }
