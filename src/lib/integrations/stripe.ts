@@ -1,9 +1,9 @@
 import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
 import * as cache from '@/lib/cache'
-import { mapStripeCharge } from './stripe-map'
+import { mapStripeCharge, mapStripeFee } from './stripe-map'
 
-export { mapStripeCharge }
+export { mapStripeCharge, mapStripeFee }
 
 const STRIPE_CONNECT_AUTH = 'https://connect.stripe.com/oauth/authorize'
 const STRIPE_CONNECT_TOKEN = 'https://connect.stripe.com/oauth/token'
@@ -397,15 +397,23 @@ export async function syncStripeData(orgId: string): Promise<StripeMetrics | nul
   const integration = await getIntegration(orgId)
   if (integration) {
     try {
-      // Paginate so the ledger isn't capped at the first 100 charges.
+      // Paginate so the ledger isn't capped at the first 100 charges. Expand the
+      // balance transaction so we can read the Stripe processing fee per charge.
       const upserts = []
-      for await (const c of stripe.charges.list({ created: { gte: sinceTs(90) }, limit: 100 })) {
+      let feeCount = 0
+      for await (const c of stripe.charges.list({ created: { gte: sinceTs(90) }, limit: 100, expand: ['data.balance_transaction'] })) {
         if (!c.paid) continue
-        const data = mapStripeCharge(orgId, integration.id, c)  // net of refunds (ASC 606-10-32)
+        const data = mapStripeCharge(orgId, integration.id, c)  // GROSS revenue, net of refunds (ASC 606-10-32)
         upserts.push(prisma.transaction.upsert({ where: { orgId_externalId: { orgId, externalId: c.id } }, create: data, update: data }))
+        // Record the processing fee as its own expense row (gross→net bridge).
+        const fee = mapStripeFee(orgId, integration.id, c)
+        if (fee) {
+          upserts.push(prisma.transaction.upsert({ where: { orgId_externalId: { orgId, externalId: fee.externalId } }, create: fee, update: fee }))
+          feeCount++
+        }
       }
       if (upserts.length) await prisma.$transaction(upserts)
-      console.log(`[stripe] sync persisted ${upserts.length} charge(s) (last 90d) for org ${orgId}`)
+      console.warn(`[stripe] sync persisted ${upserts.length} row(s) — incl. ${feeCount} processing-fee expense(s) (last 90d) for org ${orgId}`)
     } catch (err) {
       console.error('[stripe] charge persistence failed:', errMsg(err))
     }

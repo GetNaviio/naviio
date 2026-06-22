@@ -114,6 +114,7 @@ export const USER_CATEGORIES: string[] = [
     'Payroll & Contractors',
     'Insurance',
     'Professional Fees',
+    'Payment Processing Fees',
     'Equipment',
   ]),
 ].sort().concat('Other')
@@ -202,6 +203,15 @@ function expenseVendorOverride(t: LedgerTxn): MerchantRule | null {
  * before generic income/expense so already-counted money never inflates the P&L.
  */
 export function classify(t: LedgerTxn): Classification {
+  // 0a) Stripe processing fees. A Stripe-source DEBIT is always a processing fee
+  //     — we net refunds into the charge amount, so Stripe never debits us for
+  //     anything else. Record it as its own expense so REVENUE stays gross and
+  //     the fee shows as a visible P&L line (gross→net bridge). Must run before
+  //     the merchant lookup, which would otherwise match "stripe" → Software.
+  if (t.source === 'stripe' && t.type === 'DEBIT') {
+    return { bucket: 'EXPENSE', expenseCategory: 'Payment Processing Fees', excludedFromPnl: false, confidence: 0.98, source: 'rule' }
+  }
+
   // 0) Known expense-vendor (payroll, etc.) paying out → real P&L expense even
   //    if Plaid tagged the ACH as a transfer. Runs before the transfer rule.
   const ev = expenseVendorOverride(t)

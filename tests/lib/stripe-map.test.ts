@@ -1,4 +1,5 @@
-import { mapStripeCharge } from '@/lib/integrations/stripe-map'
+import { mapStripeCharge, mapStripeFee } from '@/lib/integrations/stripe-map'
+import { classify } from '@/lib/metrics/classify'
 import type Stripe from 'stripe'
 
 function charge(overrides: Partial<Stripe.Charge> = {}): Stripe.Charge {
@@ -66,5 +67,50 @@ describe('mapStripeCharge', () => {
     expect(
       mapStripeCharge(ORG, INT, charge({ billing_details: { name: null } as Stripe.Charge.BillingDetails })).merchantName,
     ).toBeNull()
+  })
+})
+
+describe('mapStripeFee', () => {
+  const ORG = 'org_1'
+  const INT = 'int_1'
+  const withBt = (fee: number | null, extra: Partial<Stripe.Charge> = {}) =>
+    charge({ balance_transaction: (fee == null ? null : { fee, currency: 'usd' }) as unknown as Stripe.BalanceTransaction, ...extra })
+
+  it('maps the fee to a DEBIT expense row, externalId = charge id + _fee', () => {
+    const row = mapStripeFee(ORG, INT, withBt(175)) // $1.75 fee
+    expect(row).not.toBeNull()
+    expect(row!.externalId).toBe('ch_1_fee')
+    expect(row!.type).toBe('DEBIT')
+    expect(row!.source).toBe('stripe')
+    expect(row!.category).toBe('Payment Processing Fees')
+    expect(row!.amount).toBeCloseTo(1.75, 5)
+  })
+
+  it('returns null when there is no fee or the balance transaction is not expanded', () => {
+    expect(mapStripeFee(ORG, INT, withBt(0))).toBeNull()
+    expect(mapStripeFee(ORG, INT, withBt(null))).toBeNull()
+    expect(mapStripeFee(ORG, INT, charge({ balance_transaction: 'txn_unexpanded' as unknown as string }))).toBeNull()
+  })
+})
+
+describe('classify: Stripe processing fee', () => {
+  it('classifies a Stripe-source DEBIT as the Payment Processing Fees expense', () => {
+    const c = classify({
+      source: 'stripe', type: 'DEBIT', amount: 1.75,
+      description: 'Stripe processing fee', merchantName: 'Stripe', category: 'Payment Processing Fees',
+      date: new Date(), externalId: 'ch_1_fee',
+    } as Parameters<typeof classify>[0])
+    expect(c.bucket).toBe('EXPENSE')
+    expect(c.expenseCategory).toBe('Payment Processing Fees')
+    expect(c.excludedFromPnl).toBe(false)
+  })
+
+  it('keeps a Stripe charge (CREDIT) as gross revenue', () => {
+    const c = classify({
+      source: 'stripe', type: 'CREDIT', amount: 49.99,
+      description: 'Pro plan', merchantName: 'Acme', category: 'REVENUE',
+      date: new Date(), externalId: 'ch_1',
+    } as Parameters<typeof classify>[0])
+    expect(c.bucket).toBe('REVENUE')
   })
 })

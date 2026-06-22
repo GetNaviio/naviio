@@ -32,3 +32,36 @@ export function mapStripeCharge(
     source: 'stripe',
   }
 }
+
+/**
+ * Map a charge's Stripe processing fee to a DEBIT expense row, so revenue stays
+ * GROSS and the fee is a visible P&L line ("Payment Processing Fees") — the
+ * gross→net bridge. The fee lives on the charge's expanded balance_transaction
+ * (`expand: ['data.balance_transaction']`). Returns null when there's no fee or
+ * the balance transaction wasn't expanded. externalId is the charge id + '_fee'
+ * so it upserts idempotently alongside the revenue row.
+ */
+export function mapStripeFee(
+  orgId: string,
+  integrationId: string,
+  c: Stripe.Charge,
+): Prisma.TransactionUncheckedCreateInput | null {
+  const bt = c.balance_transaction
+  if (!bt || typeof bt === 'string') return null // not expanded → can't read the fee
+  const feeCents = bt.fee ?? 0
+  if (feeCents <= 0) return null
+  return {
+    orgId,
+    integrationId,
+    externalId: `${c.id}_fee`,
+    date: new Date(c.created * 1000),
+    amount: feeCents / 100,
+    currency: (bt.currency ?? c.currency ?? 'usd').toUpperCase(),
+    description: 'Stripe processing fee',
+    category: 'Payment Processing Fees',
+    merchantName: 'Stripe',
+    accountId: null,
+    type: 'DEBIT',
+    source: 'stripe',
+  }
+}
