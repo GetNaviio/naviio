@@ -46,7 +46,14 @@ export async function DELETE(request: Request) {
     if (!provider) return Response.json({ error: `unknown provider: ${raw}` }, { status: 400 })
 
     // 1) Revoke at the provider while we still hold the tokens (best-effort).
-    await revokeAtProvider(provider, orgId)
+    //    Fully isolated: a provider error — or a token that can't be decrypted
+    //    (e.g. TOKEN_ENCRYPTION_KEY rotated) — must NEVER block the local
+    //    teardown below. The user can always disconnect.
+    try {
+      await revokeAtProvider(provider, orgId)
+    } catch (revokeErr) {
+      console.error('Integration disconnect: provider revoke failed (continuing):', revokeErr)
+    }
 
     // 2) Tear down locally — idempotent (updateMany won't throw if no row), and
     //    wipe every token/cursor/tenant field so nothing stale can be reused.
