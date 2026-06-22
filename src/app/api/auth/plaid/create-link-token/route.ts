@@ -33,12 +33,30 @@ export async function POST(request: Request) {
     // duplicate. Two triggers: (1) the item is in ERROR → re-authenticate;
     // (2) accountSelection requested → let the user add new accounts. Both need
     // the existing access token.
-    const existing = await prisma.integration.findUnique({
+    //
+    // Read `status` first (not encrypted). Only read the access token when we
+    // actually need it, and tolerate a decryption failure — a token that can't
+    // be decrypted (e.g. TOKEN_ENCRYPTION_KEY rotated) must NOT block creating a
+    // brand-new link token. In that case we fall back to a fresh connection.
+    const meta = await prisma.integration.findUnique({
       where: { orgId_provider: { orgId, provider: 'PLAID' } },
-      select: { accessToken: true, status: true },
+      select: { status: true },
     })
-    const needsUpdate = accountSelection || existing?.status === 'ERROR'
-    const updateToken = needsUpdate && existing?.accessToken ? existing.accessToken : undefined
+    const needsUpdate = accountSelection || meta?.status === 'ERROR'
+
+    let updateToken: string | undefined
+    if (needsUpdate) {
+      try {
+        const tok = await prisma.integration.findUnique({
+          where: { orgId_provider: { orgId, provider: 'PLAID' } },
+          select: { accessToken: true },
+        })
+        updateToken = tok?.accessToken ?? undefined
+      } catch (err) {
+        console.error('Plaid: existing token unreadable — falling back to a fresh link token:', errMsg(err))
+        updateToken = undefined
+      }
+    }
 
     const linkToken = await createLinkToken(orgId, updateToken, accountSelection)
     return Response.json({ link_token: linkToken })
