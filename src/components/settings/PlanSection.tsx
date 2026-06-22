@@ -38,6 +38,7 @@ export default function PlanSection() {
   const [configured, setConfigured] = useState(false)
   const [cycle, setCycle] = useState<Cycle>('monthly')
   const [busy, setBusy] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
 
   const load = useCallback(async () => {
     const res = await fetch('/api/billing')
@@ -52,6 +53,7 @@ export default function PlanSection() {
     setStatus(data.subscriptionStatus ?? 'none')
     setIsOwner(data.isOwner ?? false)
     setConfigured((data.billingConfigured && data.pricesConfigured) ?? false)
+    setLoaded(true)
   }, [])
 
   useEffect(() => {
@@ -108,17 +110,28 @@ export default function PlanSection() {
           ))}
         </div>
       </div>
-      <p className="text-xs mb-1" style={{ color: status === 'past_due' || status === 'unpaid' ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
-        {status === 'past_due' || status === 'unpaid'
-          ? 'Payment past due — update your card to keep your plan.'
-          : `You're on the ${currentLabel} plan.`}
-      </p>
-      <p className="flex items-center gap-1.5 text-xs mb-4" style={{ color: overLimit ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
-        <Building2 size={13} />
-        {entityCount} {entityCount === 1 ? 'entity' : 'entities'} in use · {currentLabel} includes{' '}
-        {includedForCurrent}
-        {overLimit ? ` — ${entityCount - includedForCurrent} over your plan` : ''}
-      </p>
+      {!loaded ? (
+        // Until /api/billing resolves, show a neutral placeholder instead of the
+        // default Starter state (which otherwise flashes "You're on the Starter
+        // plan" before correcting to the real plan).
+        <p className="text-xs mb-4 animate-pulse" style={{ color: 'var(--color-text-muted)' }}>
+          Loading your plan…
+        </p>
+      ) : (
+        <>
+          <p className="text-xs mb-1" style={{ color: status === 'past_due' || status === 'unpaid' ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
+            {status === 'past_due' || status === 'unpaid'
+              ? 'Payment past due — update your card to keep your plan.'
+              : `You're on the ${currentLabel} plan.`}
+          </p>
+          <p className="flex items-center gap-1.5 text-xs mb-4" style={{ color: overLimit ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
+            <Building2 size={13} />
+            {entityCount} {entityCount === 1 ? 'entity' : 'entities'} in use · {currentLabel} includes{' '}
+            {includedForCurrent}
+            {overLimit ? ` — ${entityCount - includedForCurrent} over your plan` : ''}
+          </p>
+        </>
+      )}
 
       {showNudge && (
         <div
