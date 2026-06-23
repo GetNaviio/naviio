@@ -1,6 +1,6 @@
 import { requireAuth, getDefaultOrgId } from '@/lib/auth'
 import * as cache from '@/lib/cache'
-import { loadPrimaryLedger, startOfYearUTC, ledgerSources, connectedProviders, monthsAgoUTC, categoryOverrides } from '@/lib/metrics/ledger'
+import { loadPrimaryLedger, startOfYearUTC, ledgerSources, connectedProviders, monthsAgoUTC, categoryOverrides, classificationOverrides } from '@/lib/metrics/ledger'
 import { getCommunityPrior } from '@/lib/metrics/community'
 import { incomeStatement, cashFlow, runwayMonths } from '@/lib/metrics/compute'
 import { marketingSpend } from '@/lib/metrics/marketing'
@@ -32,13 +32,14 @@ export async function GET() {
 
     // Trailing 13 months of ledger (covers a 12-month series + current month).
     // Source-of-truth hierarchy: Plaid/Stripe rows win; accounting only as fallback.
-    const [ledger, catOverrides, community] = await Promise.all([
+    const [ledger, catOverrides, community, ecOverrides] = await Promise.all([
       loadPrimaryLedger(orgId, monthsAgoUTC(12)),
       categoryOverrides(orgId), // user category fixes — applied everywhere
       getCommunityPrior(),      // cross-org prior → consistent category breakdown
+      classificationOverrides(orgId), // user COGS/OpEx tags → gross-margin split
     ])
 
-    const is = incomeStatement(ledger, startOfYearUTC(), undefined, catOverrides, community) // YTD income statement
+    const is = incomeStatement(ledger, startOfYearUTC(), undefined, catOverrides, community, ecOverrides) // YTD income statement (+ gross margin)
     const cf = cashFlow(ledger, undefined, undefined, catOverrides) // trailing cash flow (honors overrides)
     const marketing = { thisMonth: marketingSpend(ledger, monthsAgoUTC(0)) }
     // Cap the live Plaid balance call so a slow provider can't time out the whole

@@ -3,7 +3,7 @@ import * as cache from '@/lib/cache'
 import { fetchQuickBooksData } from '@/lib/integrations/quickbooks'
 import { fetchXeroData } from '@/lib/integrations/xero'
 import { summarizeAccounting, type AccountingSummary } from '@/lib/integrations/accounting-map'
-import { loadPrimaryLedger, startOfYearUTC, ledgerSources, connectedProviders } from '@/lib/metrics/ledger'
+import { loadPrimaryLedger, startOfYearUTC, ledgerSources, connectedProviders, classificationOverrides } from '@/lib/metrics/ledger'
 import { incomeStatement } from '@/lib/metrics/compute'
 import type { IntegrationProvider } from '@prisma/client'
 
@@ -47,14 +47,17 @@ export async function GET() {
     // 1) PRIMARY: compute from the raw ledger (Plaid/Stripe; else accounting txns).
     const ledger = await loadPrimaryLedger(orgId, startOfYearUTC())
     if (ledger.length > 0) {
-      const is = incomeStatement(ledger)
+      const ecOverrides = await classificationOverrides(orgId).catch(() => undefined)
+      const is = incomeStatement(ledger, undefined, undefined, undefined, undefined, ecOverrides)
       const sources = await ledgerSources(orgId)
       summary = {
         source: 'synthesized',
         totalIncome: is.totalIncome,
         totalExpenses: is.totalExpenses,
         netIncome: is.netIncome,
-        grossProfit: null,        // no COGS split from bank/payment data
+        // Cost-of-revenue split now derived from the ledger (cross-industry COGS
+        // heuristic + user tags), so the synthesized P&L shows gross profit.
+        grossProfit: is.grossProfit,
         outstandingCount: null,
         outstandingAmount: null,
         currency: 'USD',

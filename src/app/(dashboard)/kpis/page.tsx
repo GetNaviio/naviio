@@ -16,7 +16,7 @@ import type { StripeMetrics } from '@/lib/integrations/stripe'
 
 interface Metrics {
   sources: { plaid: boolean; stripe: boolean; quickbooks: boolean; xero: boolean }
-  incomeStatement: { totalIncome: number; netIncome: number; netMargin: number | null }
+  incomeStatement: { totalIncome: number; netIncome: number; netMargin: number | null; cogs: number; grossMargin: number | null }
   marketing?: { thisMonth: number }
 }
 interface Movement { waterfall: { netNewMrr: number } | null }
@@ -55,6 +55,12 @@ export default function KPIsPage() {
   // KPIs is the EFFICIENCY / unit-economics layer. Recurring-revenue counters
   // (MRR, customers, churn, LTV) live on the Revenue tab — not duplicated here.
   const cards: { title: string; value: string; suffix?: string; subtitle?: string; icon: ReactNode; iconBg: string; tooltip: string }[] = []
+  // Gross margin — the keystone unit-economic, universal to every industry. Shown
+  // only when a real cost-of-revenue split exists (cogs > 0); otherwise gross
+  // margin would be a misleading 100%.
+  const grossShown = is?.grossMargin != null && (is?.cogs ?? 0) > 0
+  if (grossShown)
+    cards.push({ title: 'Gross Margin', value: is!.grossMargin!.toFixed(1), suffix: '%', icon: <Percent size={16} style={{ color: '#8B5CF6' }} />, iconBg: 'rgba(139,92,246,0.15)', tooltip: 'Gross profit ÷ revenue, year-to-date — revenue minus cost of revenue (COGS), from your ledger.' })
   if (is?.netMargin != null)
     cards.push({ title: 'Net Margin', value: is.netMargin.toFixed(1), suffix: '%', icon: <Percent size={16} style={{ color: '#14B8A6' }} />, iconBg: 'rgba(20,184,166,0.15)', tooltip: 'Net income ÷ total income, year-to-date — from your transaction ledger.' })
 
@@ -78,7 +84,7 @@ export default function KPIsPage() {
     ...(mv?.waterfall ? [] : [{ name: 'NRR', need: 'A second monthly MRR snapshot' }]),
     ...(cacVal != null ? [] : [{ name: 'CAC', need: 'Tagged ad spend + new customers' }]),
     ...(magic != null ? [] : [{ name: 'Magic Number', need: 'Net-new ARR + ad spend' }]),
-    ...LOCKED_BASE,
+    ...LOCKED_BASE.filter((x) => !(grossShown && x.name === 'Gross Margin')),
   ]
 
   return (

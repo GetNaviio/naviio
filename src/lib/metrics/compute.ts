@@ -5,6 +5,7 @@
  */
 import { classifyWithOverride, resolveVendorCategories, resolveTxnCategory, vendorKey, type LedgerTxn, type CategoryOverrides, type CommunityPrior } from './classify'
 import { expandRevenueRecognition, deferredRevenueAsOf } from './revenue-recognition'
+import { isCogsHeuristic, type ExpenseClass } from '@/lib/model/cogs'
 
 /** The user's explicit override for a row (per-transaction wins over per-vendor), or null. */
 function userOverrideFor(
@@ -30,6 +31,14 @@ export interface DatedLedgerTxn extends LedgerTxn {
 export interface IncomeStatement {
   totalIncome: number
   totalExpenses: number
+  // Cost of revenue split out of totalExpenses, so the P&L shows a gross-profit
+  // line for ANY industry (SaaS infra, e-comm goods, restaurant food, trades
+  // materials/subs). operatingExpenses = totalExpenses − cogs.
+  cogs: number
+  grossProfit: number                 // totalIncome − cogs
+  grossMargin: number | null          // grossProfit / totalIncome (%)
+  operatingExpenses: number           // totalExpenses − cogs
+  operatingIncome: number             // grossProfit − operatingExpenses (= netIncome on cash basis)
   netIncome: number
   netMargin: number | null            // netIncome / totalIncome
   expensesByCategory: { category: string; amount: number }[]
@@ -78,9 +87,12 @@ export function incomeStatement(
   /** Cross-org community prior — fills vendors the heuristics couldn't name, so
    *  the by-category breakdown matches the transactions table. */
   community?: CommunityPrior,
+  /** User COGS/OpEx tags keyed by externalId (override the heuristic). */
+  expenseClassOverrides?: Record<string, ExpenseClass>,
 ): IncomeStatement {
   let totalIncome = 0
   let totalExpenses = 0
+  let cogs = 0
   const byCat = new Map<string, number>()
   const months = new Map<string, { income: number; expenses: number }>()
 
@@ -111,14 +123,24 @@ export function incomeStatement(
       m.expenses += t.amount
       const cat = resolveTxnCategory(t, vendorCat, categoryOverrides?.byTxn ?? {})
       byCat.set(cat, (byCat.get(cat) ?? 0) + t.amount)
+      // Cost-of-revenue split (user tag wins over the cross-industry heuristic).
+      const ec = (t.externalId && expenseClassOverrides?.[t.externalId]) ?? (isCogsHeuristic(t) ? 'COGS' : 'OPEX')
+      if (ec === 'COGS') cogs += t.amount
     }
     months.set(mk, m)
   }
 
   const netIncome = totalIncome - totalExpenses
+  const grossProfit = totalIncome - cogs
+  const operatingExpenses = totalExpenses - cogs
   return {
     totalIncome: round2(totalIncome),
     totalExpenses: round2(totalExpenses),
+    cogs: round2(cogs),
+    grossProfit: round2(grossProfit),
+    grossMargin: totalIncome > 0 ? round2((grossProfit / totalIncome) * 100) : null,
+    operatingExpenses: round2(operatingExpenses),
+    operatingIncome: round2(grossProfit - operatingExpenses),
     netIncome: round2(netIncome),
     netMargin: totalIncome > 0 ? round2((netIncome / totalIncome) * 100) : null,
     expensesByCategory: [...byCat.entries()]

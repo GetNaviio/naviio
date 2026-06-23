@@ -13,16 +13,22 @@ import { classify, type LedgerTxn, type Bucket } from '@/lib/metrics/classify'
 
 export type ExpenseClass = 'COGS' | 'OPEX' | 'OTHER'
 
-// Plaid personal_finance_category.primary values that usually mean cost of revenue.
+// Plaid personal_finance_category.primary values that usually mean cost of
+// revenue across industries (goods for resale, food/beverage inputs for
+// restaurants, fuel as a direct input for trades/logistics).
 const COGS_PFC = new Set([
-  'GENERAL_MERCHANDISE', // inventory / goods for resale
+  'GENERAL_MERCHANDISE',       // inventory / goods for resale
+  'FOOD_AND_DRINK',            // restaurant food & beverage inputs
+  'GENERAL_SERVICES',          // subcontracted services (often pass-through)
 ])
 
-// Keyword hints (description / merchant) for clear cost-of-revenue spend:
-// cloud hosting & infra that serves customers, payment processing, shipping /
-// fulfillment, raw materials / manufacturing / suppliers.
+// Keyword hints (description / merchant) for clear cost-of-revenue spend across
+// industries: cloud hosting/infra serving customers, payment processing,
+// shipping/fulfillment, raw materials/manufacturing/suppliers (SaaS, e-comm);
+// food & beverage suppliers (restaurants); building materials, lumber, and
+// subcontractors (trades/construction); freelancers/contractors (agencies).
 const COGS_KEYWORDS =
-  /\b(aws|amazon web services|gcp|google cloud|microsoft azure|\bazure\b|cloudflare|vercel|heroku|digital ?ocean|twilio|sendgrid|processing fee|payment processing|interchange|shipping|freight|fulfillment|3pl|manufactur|supplier|wholesale|raw material|cost of goods|cogs)\b/i
+  /\b(aws|amazon web services|gcp|google cloud|microsoft azure|\bazure\b|cloudflare|vercel|heroku|digital ?ocean|twilio|sendgrid|processing fee|payment processing|interchange|shipping|freight|fulfillment|3pl|manufactur|supplier|wholesale|distributor|raw material|cost of goods|cogs|inventory|food ?service|produce|sysco|us ?foods|restaurant depot|beverage|building material|lumber|hardware|home depot|lowe'?s|ferguson|subcontractor|sub-?contractor|contractor labor|freelancer|1099)\b/i
 
 export interface ClassifiedExpense {
   bucket: Bucket
@@ -33,7 +39,7 @@ export interface ClassifiedExpense {
   category?: string
 }
 
-function isCogsHeuristic(t: LedgerTxn): boolean {
+export function isCogsHeuristic(t: LedgerTxn): boolean {
   const pfc = (t.category ?? '').toUpperCase()
   if (COGS_PFC.has(pfc)) return true
   const text = `${t.description ?? ''} ${t.merchantName ?? ''}`

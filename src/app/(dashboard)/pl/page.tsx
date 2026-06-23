@@ -26,6 +26,11 @@ interface Metrics {
   incomeStatement: {
     totalIncome: number
     totalExpenses: number
+    cogs: number
+    grossProfit: number
+    grossMargin: number | null
+    operatingExpenses: number
+    operatingIncome: number
     netIncome: number
     netMargin: number | null
     expensesByCategory: { category: string; amount: number }[]
@@ -192,7 +197,7 @@ export default function PLPage() {
       expenses: rows.reduce((s, r) => s + r.expenses, 0),
       net: rows.reduce((s, r) => s + r.net, 0),
     })
-    const cur = { income: is?.totalIncome ?? 0, expenses: is?.totalExpenses ?? 0, net: is?.netIncome ?? 0, margin: is?.netMargin ?? null }
+    const cur = { income: is?.totalIncome ?? 0, expenses: is?.totalExpenses ?? 0, net: is?.netIncome ?? 0, margin: is?.netMargin ?? null, cogs: is?.cogs ?? 0, grossProfit: is?.grossProfit ?? 0, grossMargin: is?.grossMargin ?? null }
     const prior = lyMonths.length > 0 ? sum(lyMonths) : null
     const priorMargin = prior && prior.income > 0 ? (prior.net / prior.income) * 100 : null
     const spanLabel = ytdMonths.length ? `${monthLabel(ytdMonths[0].month)}–${monthLabel(currentYm)}` : monthLabel(currentYm)
@@ -201,8 +206,14 @@ export default function PLPage() {
   }, [months24, byYm, currentYm, is])
 
   const ytdRows = [
-    { label: 'Income', cur: ytd.cur.income, prior: ytd.prior?.income ?? null, inverse: false },
-    { label: 'Expenses', cur: ytd.cur.expenses, prior: ytd.prior?.expenses ?? null, inverse: true },
+    { label: 'Revenue', cur: ytd.cur.income, prior: ytd.prior?.income ?? null, inverse: false },
+    ...(ytd.cur.cogs > 0
+      ? [
+          { label: 'Cost of Revenue', cur: ytd.cur.cogs, prior: null, inverse: true },
+          { label: 'Gross Profit', cur: ytd.cur.grossProfit, prior: null, inverse: false },
+        ]
+      : []),
+    { label: ytd.cur.cogs > 0 ? 'Operating Expenses' : 'Expenses', cur: ytd.cur.cogs > 0 ? ytd.cur.expenses - ytd.cur.cogs : ytd.cur.expenses, prior: ytd.prior?.expenses ?? null, inverse: true },
     { label: 'Net Income', cur: ytd.cur.net, prior: ytd.prior?.net ?? null, inverse: false },
   ]
 
