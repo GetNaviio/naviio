@@ -146,5 +146,7 @@ CFO focus: fund accounting, grant compliance, donor diversification, reserves.
       NET_MARGIN_TARGET), so 30% GM is excellent for manufacturing, weak for SaaS.
 - [ ] First connector to unlock locked metrics — recommend **time-tracking** or
       **POS** (highest fractional-CFO demand, cleanest data).
-- [ ] Extend per-industry bands to revenue-growth and months-of-cash (runway
-      targets differ: a growth startup wants 18mo, a profitable restaurant 3–6mo).
+- [x] Extend per-industry bands to revenue-growth and months-of-cash — shipped
+      (REVENUE_GROWTH_TARGET, MONTHS_OF_CASH_TARGET): SaaS graded on 7%/mo growth &
+      18-month runway, a restaurant on 1.5%/mo & 4 months. All four universal Navi-
+      score dimensions are now industry-tuned.

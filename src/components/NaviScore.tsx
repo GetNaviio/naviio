@@ -6,7 +6,7 @@ import InfoTip from '@/components/ui/InfoTip'
 import {
   scoreProfitability, scoreRevenueGrowth, scoreGrossMargin, scoreRetention,
   scoreEfficiency, scoreLiquidity, overallScore, grade, scoreColor,
-  GROSS_MARGIN_TARGET, NET_MARGIN_TARGET,
+  GROSS_MARGIN_TARGET, NET_MARGIN_TARGET, REVENUE_GROWTH_TARGET, MONTHS_OF_CASH_TARGET,
 } from '@/lib/metrics/scoring'
 import type { Industry } from '@/lib/metrics/industry'
 
@@ -70,15 +70,17 @@ export default function NaviScore() {
       const showSaas = industry === 'saas' || (industry == null && wf != null)
       const nmTarget = NET_MARGIN_TARGET[industry ?? 'generic']
       const gmTarget = GROSS_MARGIN_TARGET[industry ?? 'generic']
+      const rgTarget = REVENUE_GROWTH_TARGET[industry ?? 'generic']
+      const cashTarget = MONTHS_OF_CASH_TARGET[industry ?? 'generic']
 
       const pct = (v: number | null, suffix: string) => (v == null ? '—' : `${v.toFixed(1)}${suffix}`)
       const built: Dim[] = [
         { key: 'Profitability', score: scoreProfitability(netMargin, industry), value: pct(netMargin, '% margin'), benchmark: `Target ≥ ${nmTarget}% net`, weight: 0.25, tip: `Net income ÷ revenue, graded against the ~${nmTarget}% target for your industry.` },
-        { key: 'Growth', score: scoreRevenueGrowth(revGrowth), value: revGrowth == null ? '—' : `${revGrowth.toFixed(1)}% MoM`, benchmark: 'Revenue growth', weight: 0.25, tip: 'Month-over-month revenue growth from your P&L.' },
+        { key: 'Growth', score: scoreRevenueGrowth(revGrowth, industry), value: revGrowth == null ? '—' : `${revGrowth.toFixed(1)}% MoM`, benchmark: `Target ≥ ${rgTarget}% MoM`, weight: 0.25, tip: `Month-over-month revenue growth, graded against the ~${rgTarget}%/mo target for your industry.` },
         ...(grossMargin != null
           ? [{ key: 'Gross Margin', score: scoreGrossMargin(grossMargin, industry), value: `${grossMargin.toFixed(0)}%`, benchmark: `Target ≥ ${gmTarget}%`, weight: 0.2, tip: `Gross profit ÷ revenue, graded against the ~${gmTarget}% target for your industry.` }]
           : []),
-        { key: 'Liquidity', score: scoreLiquidity(runway), value: runway == null ? '—' : runway === Infinity ? 'Cash positive' : `${runway}mo`, benchmark: 'Months of cash', weight: 0.15, tip: 'Months of cash at current burn.' },
+        { key: 'Liquidity', score: scoreLiquidity(runway, industry), value: runway == null ? '—' : runway === Infinity ? 'Cash positive' : `${runway}mo`, benchmark: `Target ≥ ${cashTarget}mo`, weight: 0.15, tip: `Months of cash at current burn, graded against the ~${cashTarget}-month target for your industry.` },
         ...(showSaas
           ? [
               { key: 'Retention', score: scoreRetention(nrr), value: pct(nrr, '% NRR'), benchmark: 'Net Revenue Retention', weight: 0.1, tip: 'Net Revenue Retention from MRR snapshots.' },

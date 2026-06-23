@@ -1,4 +1,7 @@
-import { scoreGrossMargin, scoreProfitability, GROSS_MARGIN_TARGET, NET_MARGIN_TARGET } from '@/lib/metrics/scoring'
+import {
+  scoreGrossMargin, scoreProfitability, scoreRevenueGrowth, scoreLiquidity,
+  GROSS_MARGIN_TARGET, NET_MARGIN_TARGET, REVENUE_GROWTH_TARGET, MONTHS_OF_CASH_TARGET,
+} from '@/lib/metrics/scoring'
 
 describe('per-industry score benchmarks', () => {
   it('grades the SAME gross margin differently by industry', () => {
@@ -30,5 +33,19 @@ describe('per-industry score benchmarks', () => {
   it('falls back to a generic target when no industry is given', () => {
     expect(scoreGrossMargin(45, null)).toBe(85) // generic target 45
     expect(scoreGrossMargin(45)).toBe(85)
+  })
+
+  it('revenue growth: 3% MoM is great for a restaurant, sub-par for SaaS', () => {
+    expect(scoreRevenueGrowth(3, 'restaurant')!).toBeGreaterThan(scoreRevenueGrowth(3, 'saas')!)
+    // a business at its growth target scores ~82
+    expect(scoreRevenueGrowth(REVENUE_GROWTH_TARGET.saas, 'saas')).toBe(82)
+    expect(scoreRevenueGrowth(REVENUE_GROWTH_TARGET.restaurant, 'restaurant')).toBe(82)
+  })
+
+  it('months of cash: 6mo is strong for a restaurant, thin for a SaaS startup', () => {
+    expect(scoreLiquidity(6, 'restaurant')!).toBeGreaterThan(scoreLiquidity(6, 'saas')!)
+    expect(scoreLiquidity(MONTHS_OF_CASH_TARGET.restaurant, 'restaurant')).toBe(75) // == target
+    expect(scoreLiquidity(Infinity, 'saas')).toBe(95) // cash-positive always strong
+    expect(scoreLiquidity(null, 'saas')).toBeNull()
   })
 })

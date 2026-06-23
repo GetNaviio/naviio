@@ -39,6 +39,18 @@ export const NET_MARGIN_TARGET: Record<Industry, number> = {
   saas: 15, ecommerce: 10, restaurant: 10, agency: 20, proservices: 22, trades: 12,
   manufacturing: 10, healthcare: 18, realestate: 25, nonprofit: 3, generic: 10,
 }
+// Healthy MONTH-over-month revenue growth % — a SaaS startup is expected to grow
+// far faster than a mature restaurant or property portfolio.
+export const REVENUE_GROWTH_TARGET: Record<Industry, number> = {
+  saas: 7, ecommerce: 4, restaurant: 1.5, agency: 2.5, proservices: 2.5, trades: 1.5,
+  manufacturing: 1.5, healthcare: 1.5, realestate: 1, nonprofit: 1, generic: 2,
+}
+// Healthy months-of-cash (runway) — a burning growth startup wants a long runway;
+// a profitable, predictable business runs comfortably on far less.
+export const MONTHS_OF_CASH_TARGET: Record<Industry, number> = {
+  saas: 18, ecommerce: 6, restaurant: 4, agency: 4, proservices: 4, trades: 6,
+  manufacturing: 6, healthcare: 4, realestate: 6, nonprofit: 6, generic: 6,
+}
 
 const targetOf = (t: Record<Industry, number>, industry?: Industry | null) =>
   t[industry ?? 'generic'] ?? t.generic
@@ -49,6 +61,12 @@ const grossBand = (t: number): [number, number][] =>
 /** Net-margin band scaled to a target, tolerant of break-even / small losses. */
 const netBand = (t: number): [number, number][] =>
   [[-t, 12], [0, 42], [t * 0.5, 60], [t, 82], [t * 1.6, 96]]
+/** Revenue-growth band scaled to a target, tolerant of flat / declining months. */
+const growthBand = (t: number): [number, number][] =>
+  [[-t, 18], [0, 45], [t * 0.4, 62], [t, 82], [t * 2, 96]]
+/** Months-of-cash band scaled to a target (more is better, saturating). */
+const cashBand = (t: number): [number, number][] =>
+  [[t * 0.25, 25], [t * 0.5, 45], [t, 75], [t * 1.5, 90], [t * 2, 96]]
 
 /** Profitability ← net margin %, graded against the org's industry target. */
 export const scoreProfitability = (netMarginPct: number | null | undefined, industry?: Industry | null) =>
@@ -58,10 +76,11 @@ export const scoreProfitability = (netMarginPct: number | null | undefined, indu
 export const scoreGrowth = (momGrowthPct: number | null | undefined) =>
   opt(momGrowthPct, (v) => band(v, [[-5, 20], [0, 45], [3, 65], [7, 82], [15, 97]]))
 
-/** Growth (universal) ← month-over-month REVENUE growth %. Gentler band than the
- *  SaaS one — a healthy non-software business grows a few % per month, not 7%+. */
-export const scoreRevenueGrowth = (momGrowthPct: number | null | undefined) =>
-  opt(momGrowthPct, (v) => band(v, [[-5, 20], [0, 48], [1, 62], [3, 78], [8, 95]]))
+/** Growth (universal) ← month-over-month REVENUE growth %, graded against the
+ *  industry's growth target (SaaS is expected to grow far faster than a
+ *  restaurant). */
+export const scoreRevenueGrowth = (momGrowthPct: number | null | undefined, industry?: Industry | null) =>
+  opt(momGrowthPct, (v) => band(v, growthBand(targetOf(REVENUE_GROWTH_TARGET, industry))))
 
 /** Unit economics (universal) ← gross margin %, graded against the org's industry
  *  target (30% is excellent for manufacturing, weak for SaaS). */
@@ -80,11 +99,13 @@ export const scoreUnitEconomics = (ltvCac: number | null | undefined) =>
 export const scoreEfficiency = (magic: number | null | undefined) =>
   opt(magic, (v) => band(v, [[0.3, 30], [0.7, 55], [1.0, 72], [1.5, 88], [2.5, 97]]))
 
-/** Liquidity ← runway months (Infinity ⇒ cash-positive ⇒ strong). */
-export function scoreLiquidity(runwayMonths: number | null | undefined): number | null {
+/** Liquidity ← months of cash, graded against the industry's runway target
+ *  (a burning startup needs ~18mo; a profitable restaurant is fine on 3–6).
+ *  Infinity ⇒ cash-positive ⇒ strong. */
+export function scoreLiquidity(runwayMonths: number | null | undefined, industry?: Industry | null): number | null {
   if (runwayMonths == null || Number.isNaN(runwayMonths)) return null
   if (!Number.isFinite(runwayMonths)) return 95
-  return band(runwayMonths, [[3, 25], [6, 45], [12, 70], [18, 87], [24, 96]])
+  return band(runwayMonths, cashBand(targetOf(MONTHS_OF_CASH_TARGET, industry)))
 }
 
 /** Weighted average of the available (non-null) dimension scores. */
