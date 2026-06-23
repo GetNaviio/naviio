@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, TrendingUp, Waves, BarChart3,
   CreditCard, Target, Plug, Bell, ChevronRight, Calculator, X, Telescope, Settings, LineChart,
-  Users, FolderOpen,
+  Users, FolderOpen, Briefcase,
 } from 'lucide-react'
 import { useTheme } from '@/components/layout/ThemeContext'
 import OrgSwitcher from '@/components/layout/OrgSwitcher'
@@ -14,6 +14,7 @@ import OrgSwitcher from '@/components/layout/OrgSwitcher'
 // `firmOnly` items only show for fractional-CFO / advisor accounts; plain
 // individual accounts never see the Clients tab.
 const nav = [
+  { href: '/advisor',      label: 'Advisor Home',  icon: Briefcase, firmOnly: true },
   { href: '/dashboard',    label: 'Overview',      icon: LayoutDashboard },
   { href: '/pl',           label: 'P&L Statement', icon: TrendingUp },
   { href: '/cash-flow',    label: 'Cash Flow',     icon: Waves },

@@ -63,8 +63,8 @@ export async function GET() {
     // generate on the build host; resilient if the column isn't migrated yet).
     const [orgRows, subCount, userRows] = await Promise.all([
       prisma
-        .$queryRaw<{ industry: string | null }[]>(Prisma.sql`SELECT "industry" FROM "Organization" WHERE "id" = ${orgId} LIMIT 1`)
-        .catch(() => [] as { industry: string | null }[]),
+        .$queryRaw<{ industry: string | null; userId: string }[]>(Prisma.sql`SELECT "industry", "userId" FROM "Organization" WHERE "id" = ${orgId} LIMIT 1`)
+        .catch(() => [] as { industry: string | null; userId: string }[]),
       prisma.mrrSnapshot.count({ where: { orgId } }).catch(() => 0),
       prisma
         .$queryRaw<{ accountType: string | null }[]>(Prisma.sql`SELECT "accountType" FROM "User" WHERE "id" = ${user.id} LIMIT 1`)
@@ -73,6 +73,10 @@ export async function GET() {
     const suggestion = inferIndustry(ledger, subCount > 0)
     const industry = (orgRows[0]?.industry as Industry | null) ?? null
     const accountType = (userRows[0]?.accountType as 'owner' | 'advisor' | null) ?? null
+    // True when the active org is the user's OWN org (not a client org they're
+    // viewing). Lets the dashboard send an advisor sitting on their empty own org
+    // to the advisor home, without bouncing them out of a client they opened.
+    const viewingOwnOrg = orgRows[0]?.userId === user.id
 
     const payload = {
       hasData: ledger.length > 0 || cashBalance != null,
@@ -87,6 +91,7 @@ export async function GET() {
       // Only suggest when the evidence is reasonably strong; else the UI asks.
       industrySuggestion: !industry && suggestion.confidence >= 0.4 ? suggestion.industry : null,
       accountType,
+      viewingOwnOrg,
       generatedAt: new Date().toISOString(),
     }
 

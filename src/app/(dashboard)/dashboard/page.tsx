@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import Header from '@/components/layout/Header'
 import NotificationsBell from '@/components/layout/NotificationsBell'
 import CommandPalette from '@/components/layout/CommandPalette'
@@ -27,6 +28,8 @@ interface Metrics {
   cashFlow: { burnRate: number; byMonth: { month: string; cashIn: number; cashOut: number; net: number }[] }
   cash: { balance: number | null }
   runwayMonths: number | null
+  accountType?: 'owner' | 'advisor' | null
+  viewingOwnOrg?: boolean
 }
 
 const monthLabel = (ym: string) => {
@@ -35,6 +38,7 @@ const monthLabel = (ym: string) => {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [m, setM] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
   // Computed after mount only — formatting a live date during render differs
@@ -70,6 +74,13 @@ export default function DashboardPage() {
         .then((r) => (r.ok ? r.json() : null))
         .then((metrics) => {
           if (!alive) return
+          // A fractional CFO sitting on their OWN (empty) org belongs on the
+          // advisor home, not a bank-connect prompt. Never redirects when they've
+          // opened a client (viewingOwnOrg=false) or have their own books.
+          if (metrics?.accountType === 'advisor' && metrics?.viewingOwnOrg && !metrics?.hasData) {
+            router.replace('/advisor')
+            return
+          }
           setM(metrics)
           setLoading(false)
         })
@@ -81,7 +92,7 @@ export default function DashboardPage() {
     const onShow = (e: PageTransitionEvent) => { if (e.persisted) { setLoading(true); loadData() } }
     window.addEventListener('pageshow', onShow)
     return () => { alive = false; window.removeEventListener('pageshow', onShow) }
-  }, [])
+  }, [router])
 
   const anyConnected = !!(m?.sources && (m.sources.plaid || m.sources.stripe || m.sources.quickbooks || m.sources.xero))
   const is = m?.incomeStatement
