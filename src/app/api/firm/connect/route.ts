@@ -30,7 +30,10 @@ export const POST = withAuth(async (request, { user }) => {
     return Response.json({ url })
   } catch (e) {
     console.error('Connect onboarding failed:', e)
-    return Response.json({ error: 'Could not start Stripe onboarding.' }, { status: 502 })
+    // Surface Stripe's actual reason (e.g. "complete your platform profile",
+    // "Express not enabled") so the firm can act on it instead of guessing.
+    const detail = e instanceof Error ? e.message : 'Unknown error'
+    return Response.json({ error: `Stripe: ${detail}` }, { status: 502 })
   }
 })
 
