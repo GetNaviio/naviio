@@ -34,6 +34,7 @@ export default function BillingSection() {
   const [orgCount, setOrgCount] = useState(0)
   const [bill, setBill] = useState<Bill | null>(null)
   const [connectStatus, setConnectStatus] = useState<string>('none')
+  const [connectErr, setConnectErr] = useState('')
   // Default to the safe/locked direction (false) so we never flash an enabled
   // billing state before the real status loads.
   const [billingConfigured, setBillingConfigured] = useState(false)
@@ -108,10 +109,16 @@ export default function BillingSection() {
 
   async function startConnect() {
     setBusy(true)
+    setConnectErr('')
     try {
       const res = await fetch('/api/firm/connect', { method: 'POST' })
-      const data = await res.json()
-      if (res.ok && data.url) window.location.href = data.url
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.url) { window.location.href = data.url; return }
+      // Surface the reason instead of failing silently (e.g. Stripe Connect not
+      // enabled on the platform account → "Could not start Stripe onboarding").
+      setConnectErr(data.error || 'Could not start Stripe onboarding. Make sure Stripe Connect is enabled on your Stripe account.')
+    } catch {
+      setConnectErr('Network error — please try again.')
     } finally {
       setBusy(false)
     }
@@ -277,6 +284,9 @@ export default function BillingSection() {
             </button>
           )}
         </div>
+      )}
+      {current === 'white_label_saas' && connectErr && (
+        <p className="text-xs mt-2 px-1" style={{ color: 'var(--color-danger)' }}>{connectErr}</p>
       )}
       {!billingConfigured && (
         <p className="text-[11px] mt-3" style={{ color: 'var(--color-text-secondary)' }}>
