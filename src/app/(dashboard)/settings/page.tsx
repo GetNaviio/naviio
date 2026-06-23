@@ -5,6 +5,7 @@ import { startRegistration } from '@simplewebauthn/browser'
 import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
 import TeamSection from '@/components/settings/TeamSection'
+import BusinessTypeSection from '@/components/settings/BusinessTypeSection'
 import PortalSection from '@/components/settings/PortalSection'
 import BrandingSection from '@/components/settings/BrandingSection'
 import AdvisorAccessSection from '@/components/settings/AdvisorAccessSection'
@@ -225,7 +226,12 @@ export default function SettingsPage() {
         <div className={`${tab === 'billing' ? 'max-w-4xl' : 'max-w-2xl'} space-y-6`}>
 
         {/* ── Organization: team & entities ── */}
-        {tab === 'organization' && <TeamSection />}
+        {tab === 'organization' && (
+          <div className="space-y-6">
+            <BusinessTypeSection />
+            <TeamSection />
+          </div>
+        )}
 
         {/* ── Billing & credits ── */}
         {tab === 'billing' && (

@@ -1,5 +1,8 @@
 import { requireAuth, getDefaultOrgId } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import * as cache from '@/lib/cache'
+import { inferIndustry, type Industry } from '@/lib/metrics/industry'
 import { loadPrimaryLedger, startOfYearUTC, ledgerSources, connectedProviders, monthsAgoUTC, categoryOverrides, classificationOverrides } from '@/lib/metrics/ledger'
 import { getCommunityPrior } from '@/lib/metrics/community'
 import { incomeStatement, cashFlow, runwayMonths } from '@/lib/metrics/compute'
@@ -53,6 +56,20 @@ export async function GET() {
       : null
     const runway = cashBalance != null && cf.burnRate > 0 ? runwayMonths(cashBalance, cf.burnRate) : null
 
+    // Business type: the owner's choice + an inferred suggestion (from the
+    // transaction mix + whether recurring revenue exists). Drives which metrics
+    // are relevant and which Navi-score dimensions/benchmarks apply.
+    // Raw SQL for `industry` (the generated client picks it up after prisma
+    // generate on the build host; resilient if the column isn't migrated yet).
+    const [orgRows, subCount] = await Promise.all([
+      prisma
+        .$queryRaw<{ industry: string | null }[]>(Prisma.sql`SELECT "industry" FROM "Organization" WHERE "id" = ${orgId} LIMIT 1`)
+        .catch(() => [] as { industry: string | null }[]),
+      prisma.mrrSnapshot.count({ where: { orgId } }).catch(() => 0),
+    ])
+    const suggestion = inferIndustry(ledger, subCount > 0)
+    const industry = (orgRows[0]?.industry as Industry | null) ?? null
+
     const payload = {
       hasData: ledger.length > 0 || cashBalance != null,
       sources,
@@ -62,6 +79,9 @@ export async function GET() {
       cash: { balance: cashBalance },
       runwayMonths: runway,
       marketing,
+      industry,
+      // Only suggest when the evidence is reasonably strong; else the UI asks.
+      industrySuggestion: !industry && suggestion.confidence >= 0.4 ? suggestion.industry : null,
       generatedAt: new Date().toISOString(),
     }
 

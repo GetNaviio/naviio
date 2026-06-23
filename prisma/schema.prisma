@@ -168,6 +168,11 @@ model Organization {
   stripeCustomerId     String?
   stripeSubscriptionId String?
   subscriptionStatus   String   @default("none") // none | active | trialing | past_due | canceled | unpaid
+  // Business type / industry — decides which metrics are relevant (the metric
+  // registry gates on it) and which benchmarks the Navi score uses. Set by the
+  // owner (onboarding), inferred from the transaction mix as a suggestion.
+  // null = not yet chosen (treated as 'generic').
+  industry             String?
   // White-label (CFO Suite): a client entity's own brand on the portal and
   // exported reports. logoUrl is an https image URL; brandColor a #hex accent.
   // hideNaviioBranding minimizes the "Powered by Navi" mark where allowed.

@@ -27,9 +27,19 @@ const opt = (v: number | null | undefined, fn: (n: number) => number): number | 
 export const scoreProfitability = (netMarginPct: number | null | undefined) =>
   opt(netMarginPct, (v) => band(v, [[-20, 10], [0, 45], [10, 65], [20, 82], [40, 96]]))
 
-/** Growth ← month-over-month MRR growth %. */
+/** Growth ← month-over-month MRR growth % (SaaS pace). */
 export const scoreGrowth = (momGrowthPct: number | null | undefined) =>
   opt(momGrowthPct, (v) => band(v, [[-5, 20], [0, 45], [3, 65], [7, 82], [15, 97]]))
+
+/** Growth (universal) ← month-over-month REVENUE growth %. Gentler band than the
+ *  SaaS one — a healthy non-software business grows a few % per month, not 7%+. */
+export const scoreRevenueGrowth = (momGrowthPct: number | null | undefined) =>
+  opt(momGrowthPct, (v) => band(v, [[-5, 20], [0, 48], [1, 62], [3, 78], [8, 95]]))
+
+/** Unit economics (universal) ← gross margin %. Works for every industry; the
+ *  basis for each industry's deeper unit economics. */
+export const scoreGrossMargin = (grossMarginPct: number | null | undefined) =>
+  opt(grossMarginPct, (v) => band(v, [[10, 25], [30, 50], [50, 70], [70, 86], [90, 97]]))
 
 /** Retention ← NRR %. */
 export const scoreRetention = (nrrPct: number | null | undefined) =>

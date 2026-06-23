@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, PolarRadiusAxis } from 'recharts'
 import InfoTip from '@/components/ui/InfoTip'
 import {
-  scoreProfitability, scoreGrowth, scoreRetention, scoreUnitEconomics,
+  scoreProfitability, scoreRevenueGrowth, scoreGrossMargin, scoreRetention,
   scoreEfficiency, scoreLiquidity, overallScore, grade, scoreColor,
 } from '@/lib/metrics/scoring'
 
@@ -36,34 +36,51 @@ export default function NaviScore() {
       fetch('/api/stripe/metrics').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/revenue/movement').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/integrations/status').then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]).then(([mx, sm, move, status]) => {
+    ]).then(([mx, , move, status]) => {
       if (!alive) return
       // A connected provider whose token can't be read is flagged status:ERROR →
       // surfaced here so the card prompts a reconnect rather than vanishing.
       setReconnect(Object.values(status?.reconnect ?? {}).some(Boolean))
-      const stripe = sm?.source === 'stripe' ? sm.metrics : null
       const wf = move?.waterfall ?? null
 
-      const netMargin = mx?.incomeStatement?.netMargin ?? null
-      const momGrowth = wf && wf.startMrr > 0 ? (wf.netNewMrr / wf.startMrr) * 100 : null
+      const is = mx?.incomeStatement
+      const netMargin = is?.netMargin ?? null
+      // Growth ← month-over-month REVENUE growth (universal), from the income
+      // statement's monthly series, excluding the partial current month.
+      const months: { income: number }[] = is?.byMonth ?? []
+      const complete = months.length > 1 ? months.slice(0, -1) : months
+      const lm = complete[complete.length - 1], pm = complete[complete.length - 2]
+      const revGrowth = lm && pm && pm.income > 0 ? ((lm.income - pm.income) / pm.income) * 100 : null
+      // Unit economics (universal) ← gross margin, only when a real COGS split exists.
+      const grossMargin = (is?.cogs ?? 0) > 0 ? is?.grossMargin ?? null : null
+
       const nrr = move?.nrr ?? null
       const marketing = mx?.marketing?.thisMonth ?? 0
-      const newCust = stripe?.customers?.newThisMonth ?? 0
-      const cacVal = marketing > 0 && newCust > 0 ? marketing / newCust : null
-      const ltvCac = cacVal && stripe?.ltv != null ? stripe.ltv / cacVal : null
       const magic = wf && marketing > 0 ? (wf.netNewMrr * 12) / marketing : null
       const burn = mx?.cashFlow?.burnRate ?? 0
       const cashPresent = mx?.cash?.balance != null
       const runway = mx?.runwayMonths != null ? mx.runwayMonths : (cashPresent && burn <= 0 ? Infinity : null)
 
+      // SaaS-only dimensions (Retention, Efficiency) apply when the business is
+      // SaaS — explicitly, or implicitly when recurring-revenue snapshots exist
+      // and no other industry was chosen. A restaurant never sees an empty NRR axis.
+      const industry: string | null = mx?.industry ?? null
+      const showSaas = industry === 'saas' || (industry == null && wf != null)
+
       const pct = (v: number | null, suffix: string) => (v == null ? '—' : `${v.toFixed(1)}${suffix}`)
       const built: Dim[] = [
-        { key: 'Profitability', score: scoreProfitability(netMargin), value: pct(netMargin, '% margin'), benchmark: 'Target ≥ 20%', weight: 0.2, tip: 'Net margin vs SaaS targets.' },
-        { key: 'Growth', score: scoreGrowth(momGrowth), value: momGrowth == null ? '—' : `${momGrowth.toFixed(1)}% MoM`, benchmark: 'Target ≥ 7% MoM', weight: 0.2, tip: 'Month-over-month MRR growth from your snapshots.' },
-        { key: 'Efficiency', score: scoreEfficiency(magic), value: magic == null ? '—' : `${magic.toFixed(2)}x Magic#`, benchmark: 'Target ≥ 1.5x', weight: 0.15, tip: 'Net-new ARR per $ of ad spend.' },
-        { key: 'Retention', score: scoreRetention(nrr), value: pct(nrr, '% NRR'), benchmark: 'Target ≥ 110%', weight: 0.2, tip: 'Net Revenue Retention from MRR snapshots.' },
-        { key: 'Unit Econ.', score: scoreUnitEconomics(ltvCac), value: ltvCac == null ? '—' : `${ltvCac.toFixed(1)}x LTV/CAC`, benchmark: 'Target ≥ 5x', weight: 0.15, tip: 'LTV ÷ CAC.' },
-        { key: 'Liquidity', score: scoreLiquidity(runway), value: runway == null ? '—' : runway === Infinity ? 'Cash positive' : `${runway}mo runway`, benchmark: 'Target ≥ 18mo', weight: 0.1, tip: 'Months of runway at current burn.' },
+        { key: 'Profitability', score: scoreProfitability(netMargin), value: pct(netMargin, '% margin'), benchmark: 'Net margin', weight: 0.25, tip: 'Net income ÷ revenue.' },
+        { key: 'Growth', score: scoreRevenueGrowth(revGrowth), value: revGrowth == null ? '—' : `${revGrowth.toFixed(1)}% MoM`, benchmark: 'Revenue growth', weight: 0.25, tip: 'Month-over-month revenue growth from your P&L.' },
+        ...(grossMargin != null
+          ? [{ key: 'Gross Margin', score: scoreGrossMargin(grossMargin), value: `${grossMargin.toFixed(0)}%`, benchmark: 'Gross margin', weight: 0.2, tip: 'Gross profit ÷ revenue — your core unit economics.' }]
+          : []),
+        { key: 'Liquidity', score: scoreLiquidity(runway), value: runway == null ? '—' : runway === Infinity ? 'Cash positive' : `${runway}mo`, benchmark: 'Months of cash', weight: 0.15, tip: 'Months of cash at current burn.' },
+        ...(showSaas
+          ? [
+              { key: 'Retention', score: scoreRetention(nrr), value: pct(nrr, '% NRR'), benchmark: 'Net Revenue Retention', weight: 0.1, tip: 'Net Revenue Retention from MRR snapshots.' },
+              { key: 'Efficiency', score: scoreEfficiency(magic), value: magic == null ? '—' : `${magic.toFixed(2)}x`, benchmark: 'Magic Number', weight: 0.05, tip: 'Net-new ARR per $ of ad spend.' },
+            ]
+          : []),
       ]
       setDims(built)
       setOverall(overallScore(built.map((d) => ({ score: d.score, weight: d.weight }))))
@@ -103,9 +120,9 @@ export default function NaviScore() {
           <h3 className="flex items-center gap-2 text-base font-semibold text-white">
             Navi Score
             <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#3B82F6' }}>Financial Health Score</span>
-            <InfoTip text="A composite score across 6 financial dimensions, each scored 0–100 from your live data against SaaS benchmarks. Dimensions without data yet are shown as 'needs data', not scored." />
+            <InfoTip text="A composite score across the financial dimensions that fit your business, each scored 0–100 from your live data. Dimensions without data yet are shown as 'needs data'; SaaS-only dimensions appear only for subscription businesses." />
           </h3>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{available.length} of 6 dimensions scored from live data</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{available.length} of {dims.length} dimensions scored from live data</p>
         </div>
         {g && (
           <div className="text-right">

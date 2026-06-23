@@ -19,3 +19,7 @@ CREATE INDEX IF NOT EXISTS "StripePayout_orgId_arrivalDate_idx" ON "StripePayout
 -- 2) P0-3 — Revenue-recognition service window (ratable / deferred revenue)
 ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS "recognitionStart" TIMESTAMP(3);
 ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS "recognitionEnd" TIMESTAMP(3);
+
+-- 3) Phase 2 — business type / industry on the org (metric registry + Navi-score
+--    benchmarks). NULL = not yet chosen (treated as 'generic').
+ALTER TABLE "Organization" ADD COLUMN IF NOT EXISTS "industry" TEXT;
