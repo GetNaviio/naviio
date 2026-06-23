@@ -25,14 +25,30 @@ export interface Firm {
  * none of the firm surface.
  */
 export async function isFirmUser(userId: string): Promise<boolean> {
-  const rows = await prisma.$queryRaw<Array<{ ok: boolean }>>(Prisma.sql`
-    SELECT (
-      EXISTS (SELECT 1 FROM "Firm" WHERE "ownerUserId" = ${userId})
-      OR EXISTS (SELECT 1 FROM "FirmMember" WHERE "userId" = ${userId})
-      OR EXISTS (SELECT 1 FROM "OrgMember" WHERE "userId" = ${userId} AND "role"::text = 'ADVISOR')
-    ) AS ok
-  `)
-  return !!rows[0]?.ok
+  try {
+    const rows = await prisma.$queryRaw<Array<{ ok: boolean }>>(Prisma.sql`
+      SELECT (
+        EXISTS (SELECT 1 FROM "Firm" WHERE "ownerUserId" = ${userId})
+        OR EXISTS (SELECT 1 FROM "FirmMember" WHERE "userId" = ${userId})
+        OR EXISTS (SELECT 1 FROM "OrgMember" WHERE "userId" = ${userId} AND "role"::text = 'ADVISOR')
+      ) AS ok
+    `)
+    return !!rows[0]?.ok
+  } catch {
+    // FirmMember (or another firm table) may be missing pre-migration — fall back
+    // to owner + advisor membership so the firm surface degrades, not crashes.
+    try {
+      const rows = await prisma.$queryRaw<Array<{ ok: boolean }>>(Prisma.sql`
+        SELECT (
+          EXISTS (SELECT 1 FROM "Firm" WHERE "ownerUserId" = ${userId})
+          OR EXISTS (SELECT 1 FROM "OrgMember" WHERE "userId" = ${userId} AND "role"::text = 'ADVISOR')
+        ) AS ok
+      `)
+      return !!rows[0]?.ok
+    } catch {
+      return false
+    }
+  }
 }
 
 /** The firm this user owns, or null. */

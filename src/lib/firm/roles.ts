@@ -57,9 +57,11 @@ export async function getFirmIdForUser(userId: string): Promise<string | null> {
     SELECT "id" FROM "Firm" WHERE "ownerUserId" = ${userId} LIMIT 1
   `)
   if (owned[0]?.id) return owned[0].id
+  // FirmMember may not be migrated yet on every DB — degrade to "owned only"
+  // rather than 500 the whole firm/advisor surface.
   const member = await prisma.$queryRaw<Array<{ firmId: string }>>(Prisma.sql`
     SELECT "firmId" FROM "FirmMember" WHERE "userId" = ${userId} LIMIT 1
-  `)
+  `).catch(() => [] as Array<{ firmId: string }>)
   return member[0]?.firmId ?? null
 }
 

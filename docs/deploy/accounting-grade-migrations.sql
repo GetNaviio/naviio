@@ -26,3 +26,24 @@ ALTER TABLE "Organization" ADD COLUMN IF NOT EXISTS "industry" TEXT;
 
 -- 4) Onboarding — account type ('owner' | 'advisor'). NULL = treated as owner.
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "accountType" TEXT;
+
+-- 5) Firm RBAC — FirmMember (PARTNER/ANALYST). Needed by the advisor/firm surface;
+--    if this is missing the firm helpers degrade to owner-only, but the team
+--    features need it. Idempotent.
+DO $$ BEGIN
+  CREATE TYPE "FirmRole" AS ENUM ('PARTNER', 'ANALYST');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+CREATE TABLE IF NOT EXISTS "FirmMember" (
+    "id" TEXT NOT NULL,
+    "firmId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "role" "FirmRole" NOT NULL DEFAULT 'ANALYST',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FirmMember_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "FirmMember_firmId_userId_key" ON "FirmMember"("firmId", "userId");
+CREATE INDEX IF NOT EXISTS "FirmMember_userId_idx" ON "FirmMember"("userId");
+DO $$ BEGIN
+  ALTER TABLE "FirmMember" ADD CONSTRAINT "FirmMember_firmId_fkey"
+    FOREIGN KEY ("firmId") REFERENCES "Firm"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN null; END $$;
