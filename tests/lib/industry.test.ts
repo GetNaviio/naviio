@@ -16,6 +16,11 @@ describe('inferIndustry (P2 detection)', () => {
     expect(r.industry).toBe('trades')
   })
 
+  it('infers nonprofit from grant / donor signals', () => {
+    const r = inferIndustry([tx('Grant disbursement'), tx('Donor pledge'), tx('Blackbaud'), tx('Foundation gift')])
+    expect(r.industry).toBe('nonprofit')
+  })
+
   it('treats recurring subscriptions as a strong SaaS prior', () => {
     const r = inferIndustry([tx('Office supplies')], true)
     expect(r.industry).toBe('saas')

@@ -18,6 +18,7 @@ export type Industry =
   | 'manufacturing'
   | 'healthcare'
   | 'realestate'
+  | 'nonprofit'
   | 'generic'
 
 export const INDUSTRIES: { id: Industry; label: string; blurb: string }[] = [
@@ -29,6 +30,7 @@ export const INDUSTRIES: { id: Industry; label: string; blurb: string }[] = [
   { id: 'manufacturing', label: 'Manufacturing / Distribution', blurb: 'Producing or distributing goods' },
   { id: 'healthcare', label: 'Healthcare Practice', blurb: 'Clinics, providers, and practices' },
   { id: 'realestate', label: 'Real Estate / Property', blurb: 'Property management, rentals, and investing' },
+  { id: 'nonprofit', label: 'Nonprofit / Foundation', blurb: 'Grants, donations, and program funding' },
   { id: 'generic', label: 'Other / General', blurb: 'A general business P&L' },
 ]
 
@@ -48,6 +50,7 @@ const SIGNALS: Record<Exclude<Industry, 'generic'>, RegExp> = {
   manufacturing: /\b(manufactur|fabrication|machining|machine shop|cnc|tooling|assembly|industrial supply|mcmaster|grainger|raw material|bill of materials|\bbom\b|injection mold|foundry|oem|pallet|distribution center)\b/i,
   healthcare: /\b(medicaid|medicare|blue cross|aetna|cigna|unitedhealth|copay|co-pay|patient|clinic|dental|provider|practice management|athenahealth|epic systems)\b/i,
   realestate: /\b(property management|rent roll|tenant|landlord|\bhoa\b|appfolio|buildium|yardi|realtor|brokerage|escrow|title company|leasing office|property tax|cap rate)\b/i,
+  nonprofit: /\b(grant|donation|donor|\b501c3\b|501\(c\)|nonprofit|non-profit|foundation|pledge|endowment|fundrais|charitable|blackbaud|donorperfect|bloomerang|givebutter)\b/i,
 }
 
 export interface IndustryInference {

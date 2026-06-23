@@ -73,4 +73,11 @@ describe('selectMetrics (industry packs)', () => {
     expect(visible.find((v) => v.def.id === 'opex_ratio_re')?.value).toBeCloseTo(40, 5)
     expect(locked.map((d) => d.id)).toEqual(expect.arrayContaining(['occupancy', 'cap_rate']))
   })
+
+  it('nonprofit: personnel + overhead ratios computable; program ratio + fundraising locked', () => {
+    const { visible, locked } = selectMetrics('nonprofit', base)
+    expect(visible.find((v) => v.def.id === 'personnel_ratio')?.value).toBeCloseTo(25, 5)
+    expect(visible.find((v) => v.def.id === 'overhead_ratio_np')?.value).toBeCloseTo(40, 5)
+    expect(locked.map((d) => d.id)).toEqual(expect.arrayContaining(['program_expense_ratio', 'fundraising_efficiency']))
+  })
 })

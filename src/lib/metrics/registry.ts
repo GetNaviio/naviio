@@ -230,6 +230,34 @@ export const METRIC_REGISTRY: MetricDef[] = [
     format: pct, tooltip: 'NOI ÷ property value.',
     unlock: 'Add property values to unlock',
   },
+
+  // ── Nonprofit / Foundation ────────────────────────────────────────────────
+  {
+    id: 'personnel_ratio', label: 'Personnel Ratio', industries: ['nonprofit'],
+    compute: (c) => safePct(c.payroll, c.revenue),
+    format: pct, benchmark: 'Watch the trend',
+    tooltip: 'Staff & contractor cost ÷ total revenue (contributions + program income).',
+  },
+  {
+    id: 'overhead_ratio_np', label: 'Overhead Ratio', industries: ['nonprofit'],
+    compute: (c) => safePct(c.opex, c.revenue),
+    format: pct, benchmark: 'Target ≤ 25%',
+    tooltip: 'Management & general + fundraising ÷ revenue (approx. from operating expenses).',
+  },
+  {
+    id: 'program_expense_ratio', label: 'Program Expense Ratio', industries: ['nonprofit'],
+    compute: () => null, // needs program vs. admin/fundraising classification
+    format: pct, benchmark: 'Target ≥ 75%',
+    tooltip: 'Program spending ÷ total expenses — the charity-rating headline.',
+    unlock: 'Tag expenses by function (program / admin / fundraising) to unlock',
+  },
+  {
+    id: 'fundraising_efficiency', label: 'Cost to Raise $1', industries: ['nonprofit'],
+    compute: () => null, // needs fundraising expense + contributions split
+    format: (v) => `$${v.toFixed(2)}`, benchmark: 'Target ≤ $0.20',
+    tooltip: 'Fundraising expense ÷ contributions raised.',
+    unlock: 'Connect a donor/grant system (Blackbaud / DonorPerfect) to unlock',
+  },
 ]
 
 export { ratio, pct0 } // exported for callers that format derived values

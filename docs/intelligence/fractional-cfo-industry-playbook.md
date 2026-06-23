@@ -24,7 +24,7 @@ formula, the data input it needs, and the benchmark band to score it against.
 | Manufacturing / distribution | `manufacturing` | ✅ production GM, materials %, overhead | inventory turns, capacity, std-cost variance |
 | Retail / e-commerce | `ecommerce` | ✅ contribution margin, refund rate, mktg % | AOV, sell-through, open-to-buy, omni-channel |
 | Hospitality / food service | `restaurant` | ✅ prime cost, food %, labor % | covers, avg check, occupancy cost |
-| **Nonprofit** | **— missing —** | ❌ | **fund accounting, grant tracking — new vertical** |
+| Nonprofit | `nonprofit` | ✅ personnel ratio, overhead ratio | program-expense ratio, fundraising efficiency |
 
 **Biggest single gap: Nonprofit** is not a business type yet (fund accounting,
 grant compliance, donor diversification). Add `nonprofit` to the industry enum +
@@ -137,8 +137,9 @@ CFO focus: fund accounting, grant compliance, donor diversification, reserves.
 ---
 
 ## Immediate next actions (smallest → largest)
-- [ ] Add `nonprofit` business type (enum + inference + pack) — mirrors the 3
-      packs just shipped; mostly [live] ratios from the existing P&L.
+- [x] Add `nonprofit` business type (enum + inference + pack) — shipped: personnel
+      ratio + overhead ratio [live]; program-expense ratio + cost-to-raise-$1
+      [locked, need functional-expense tagging / donor system).
 - [ ] Per-industry score benchmark bands in `scoring.ts` (data is in this doc).
 - [ ] First connector to unlock locked metrics — recommend **time-tracking** or
       **POS** (highest fractional-CFO demand, cleanest data).
