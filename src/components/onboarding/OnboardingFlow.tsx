@@ -15,10 +15,12 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Building2, Loader2, CheckCircle, Sparkles, ArrowRight, Briefcase } from 'lucide-react'
+import { Building2, Loader2, CheckCircle, Sparkles, ArrowRight, Briefcase, Users } from 'lucide-react'
 import PlaidLinkButton from '@/components/integrations/PlaidLink'
 import { formatCurrency } from '@/lib/utils'
 import { INDUSTRIES, type Industry } from '@/lib/metrics/industry'
+
+type AccountType = 'owner' | 'advisor'
 
 interface MetricsPayload {
   hasData: boolean
@@ -26,9 +28,10 @@ interface MetricsPayload {
   incomeStatement?: { totalIncome: number; totalExpenses: number }
   cash?: { balance: number | null }
   industry?: Industry | null
+  accountType?: AccountType | null
 }
 
-type Step = 'business' | 'connect' | 'syncing' | 'ready'
+type Step = 'account' | 'business' | 'connect' | 'syncing' | 'ready' | 'firm'
 
 const POLL_MS = 4000
 const SLOW_AFTER_POLLS = 12 // ~48s → show the "taking a while" fallback
@@ -42,21 +45,36 @@ export default function OnboardingFlow({
   /** Called with the fresh metrics payload when the user opens the dashboard */
   onReady: (metrics: MetricsPayload) => void
 }) {
-  const [step, setStep] = useState<Step>(connected ? 'syncing' : 'business')
+  const [step, setStep] = useState<Step>(connected ? 'syncing' : 'account')
   const [metrics, setMetrics] = useState<MetricsPayload | null>(null)
   const [polls, setPolls] = useState(0)
   const [savingInd, setSavingInd] = useState<Industry | null>(null)
+  const [savingAcct, setSavingAcct] = useState<AccountType | null>(null)
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Skip the business-type step if the org already has an industry set.
+  // Resume the right step on mount from what's already saved: an advisor goes
+  // straight to firm setup; an owner skips the business step if industry is set;
+  // a brand-new user starts at the account-type choice.
   useEffect(() => {
     if (connected) return
     let alive = true
     fetch('/api/metrics').then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (alive && d?.industry) setStep((s) => (s === 'business' ? 'connect' : s))
+      if (!alive || !d) return
+      if (d.accountType === 'advisor') { setStep((s) => (s === 'account' ? 'firm' : s)); return }
+      if (d.accountType === 'owner') { setStep((s) => (s === 'account' ? (d.industry ? 'connect' : 'business') : s)) }
+      // null accountType → stay on the 'account' step and ask
     }).catch(() => {})
     return () => { alive = false }
   }, [connected])
+
+  async function pickAccount(type: AccountType) {
+    setSavingAcct(type)
+    try {
+      await fetch('/api/user/account-type', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountType: type }) })
+    } catch { /* non-blocking */ }
+    setSavingAcct(null)
+    setStep(type === 'advisor' ? 'firm' : 'business')
+  }
 
   async function pickIndustry(id: Industry) {
     setSavingInd(id)
@@ -90,6 +108,9 @@ export default function OnboardingFlow({
 
   const slow = polls >= SLOW_AFTER_POLLS
 
+  // The numbered indicator covers the owner path only (Business→…→First insights);
+  // the account-type choice and the advisor firm-setup branch don't show it.
+  const ownerPath = step === 'business' || step === 'connect' || step === 'syncing' || step === 'ready'
   const stepIndex = step === 'business' ? 0 : step === 'connect' ? 1 : step === 'syncing' ? 2 : 3
   const STEPS = ['Business', 'Connect', 'Sync', 'First insights']
 
@@ -99,7 +120,8 @@ export default function OnboardingFlow({
         className="w-full max-w-lg rounded-2xl p-6 sm:p-8 text-center"
         style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}
       >
-        {/* Step indicator */}
+        {/* Step indicator (owner path only) */}
+        {ownerPath && (
         <div className="flex items-center justify-center gap-2 mb-7" aria-label={`Step ${stepIndex + 1} of 4`}>
           {STEPS.map((label, i) => (
             <div key={label} className="flex items-center gap-2">
@@ -123,6 +145,64 @@ export default function OnboardingFlow({
             </div>
           ))}
         </div>
+        )}
+
+        {step === 'account' && (
+          <>
+            <div className="w-12 h-12 mx-auto mb-4 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(20,184,166,0.18))' }}>
+              <Sparkles size={22} style={{ color: '#3B82F6' }} />
+            </div>
+            <h2 className="text-lg font-semibold text-white">Welcome to Naviio</h2>
+            <p className="text-sm mt-2 mb-6 leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+              How will you use Naviio? This sets up the right experience for you.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => pickAccount('owner')}
+                disabled={savingAcct != null}
+                className="flex flex-col items-center gap-2 px-4 py-5 rounded-xl transition-colors"
+                style={{ border: '1px solid var(--color-surface-border)', backgroundColor: savingAcct === 'owner' ? 'rgba(59,130,246,0.1)' : 'transparent', opacity: savingAcct === 'advisor' ? 0.5 : 1 }}
+              >
+                <Building2 size={24} style={{ color: '#3B82F6' }} />
+                <span className="text-sm font-semibold text-white">I run a business</span>
+                <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Track my own company&rsquo;s finances</span>
+              </button>
+              <button
+                onClick={() => pickAccount('advisor')}
+                disabled={savingAcct != null}
+                className="flex flex-col items-center gap-2 px-4 py-5 rounded-xl transition-colors"
+                style={{ border: '1px solid var(--color-surface-border)', backgroundColor: savingAcct === 'advisor' ? 'rgba(20,184,166,0.1)' : 'transparent', opacity: savingAcct === 'owner' ? 0.5 : 1 }}
+              >
+                <Users size={24} style={{ color: '#14B8A6' }} />
+                <span className="text-sm font-semibold text-white">I&rsquo;m a fractional CFO</span>
+                <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Advise and manage multiple clients</span>
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'firm' && (
+          <>
+            <div className="w-12 h-12 mx-auto mb-4 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(20,184,166,0.18), rgba(16,185,129,0.18))' }}>
+              <Users size={22} style={{ color: '#14B8A6' }} />
+            </div>
+            <h2 className="text-lg font-semibold text-white">Set up your practice</h2>
+            <p className="text-sm mt-2 mb-6 leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+              Add your clients and Naviio gives each one its own connected dashboard, P&amp;L, and Navi Score — switch between them from the top bar. Invite a client and they connect their own bank; you get read-only access.
+            </p>
+            <Link
+              href="/clients"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all"
+              style={{ backgroundColor: '#14B8A6', color: '#fff', boxShadow: '0 0 24px rgba(20,184,166,0.3)' }}
+            >
+              Add your first client <ArrowRight size={15} />
+            </Link>
+            <p className="text-xs mt-4" style={{ color: 'var(--color-text-muted)' }}>
+              Also want to track your own firm&rsquo;s books?{' '}
+              <button onClick={() => setStep('business')} className="underline" style={{ color: '#14B8A6' }}>Set that up</button>
+            </p>
+          </>
+        )}
 
         {step === 'business' && (
           <>

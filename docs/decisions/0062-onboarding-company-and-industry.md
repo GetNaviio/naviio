@@ -28,10 +28,22 @@ An onboarding review found two gaps that undercut the rest of the product:
 - Low-risk: no schema change, non-blocking industry POST, generic/unset still
   works (Skip), and the settings picker remains the place to change it later.
 
-## Not in scope (deferred — the "full redesign" option)
-Account-type choice (owner vs. fractional CFO) branching to firm setup / client
-invites, email verification, a post-connect next-steps checklist, and an explicit
-plan-selection moment.
+## Update — account-type branching (added)
+3. **Account type captured first.** `User.accountType` ('owner' | 'advisor';
+   migration `20260622040000`, raw-SQL read/write). The onboarding wizard now
+   opens with a "How will you use Naviio?" choice:
+   - **I run a business** → owner path (business type → connect → sync → insights).
+   - **I'm a fractional CFO** → a firm-setup step that routes to `/clients` ("Add
+     your first client"), with a secondary "also track my own books" link into the
+     owner path. No bank-connect dead-end for advisors.
+   The wizard resumes the right branch on return (advisor → firm step, owner →
+   business/connect depending on whether industry is set). `accountType` is exposed
+   on `/api/metrics`. The numbered step indicator shows only on the owner path.
+
+## Still deferred
+A dedicated advisor home dashboard (today an advisor with an empty own-org still
+sees the firm-setup card on `/dashboard`), email verification, a post-connect
+next-steps checklist, and an explicit plan-selection moment.
 
 ## Verify
 tsc + eslint clean. Manual: sign up with a company name → org is named correctly;

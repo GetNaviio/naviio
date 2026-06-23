@@ -61,14 +61,18 @@ export async function GET() {
     // are relevant and which Navi-score dimensions/benchmarks apply.
     // Raw SQL for `industry` (the generated client picks it up after prisma
     // generate on the build host; resilient if the column isn't migrated yet).
-    const [orgRows, subCount] = await Promise.all([
+    const [orgRows, subCount, userRows] = await Promise.all([
       prisma
         .$queryRaw<{ industry: string | null }[]>(Prisma.sql`SELECT "industry" FROM "Organization" WHERE "id" = ${orgId} LIMIT 1`)
         .catch(() => [] as { industry: string | null }[]),
       prisma.mrrSnapshot.count({ where: { orgId } }).catch(() => 0),
+      prisma
+        .$queryRaw<{ accountType: string | null }[]>(Prisma.sql`SELECT "accountType" FROM "User" WHERE "id" = ${user.id} LIMIT 1`)
+        .catch(() => [] as { accountType: string | null }[]),
     ])
     const suggestion = inferIndustry(ledger, subCount > 0)
     const industry = (orgRows[0]?.industry as Industry | null) ?? null
+    const accountType = (userRows[0]?.accountType as 'owner' | 'advisor' | null) ?? null
 
     const payload = {
       hasData: ledger.length > 0 || cashBalance != null,
@@ -82,6 +86,7 @@ export async function GET() {
       industry,
       // Only suggest when the evidence is reasonably strong; else the UI asks.
       industrySuggestion: !industry && suggestion.confidence >= 0.4 ? suggestion.industry : null,
+      accountType,
       generatedAt: new Date().toISOString(),
     }
 

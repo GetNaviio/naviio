@@ -23,3 +23,6 @@ ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS "recognitionEnd" TIMESTAMP(3)
 -- 3) Phase 2 — business type / industry on the org (metric registry + Navi-score
 --    benchmarks). NULL = not yet chosen (treated as 'generic').
 ALTER TABLE "Organization" ADD COLUMN IF NOT EXISTS "industry" TEXT;
+
+-- 4) Onboarding — account type ('owner' | 'advisor'). NULL = treated as owner.
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "accountType" TEXT;

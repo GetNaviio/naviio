@@ -88,6 +88,10 @@ model User {
   // Which org the user is currently working in (must be one they own or belong
   // to — validated on every resolve, so a revoked membership falls back safely).
   activeOrgId  String?
+  // Onboarding account type: 'owner' (runs a business) or 'advisor' (fractional
+  // CFO managing client orgs). Decides the onboarding branch + home experience.
+  // null = not yet chosen (treated as owner).
+  accountType  String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
