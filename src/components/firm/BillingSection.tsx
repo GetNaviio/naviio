@@ -59,6 +59,15 @@ export default function BillingSection() {
     setSubStatus(data.subscriptionStatus ?? 'none')
     setCycle(data.cycle ?? 'monthly')
     setLoaded(true)
+    // If Connect is mid-onboarding, re-check the LIVE status from Stripe so the
+    // card flips to "Connected" once the account finishes — the stored value
+    // stays 'pending' until something re-syncs it.
+    if (data.connectStatus === 'pending') {
+      fetch('/api/firm/connect')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d?.status) setConnectStatus(d.status) })
+        .catch(() => {})
+    }
   }, [])
 
   useEffect(() => {
@@ -73,6 +82,9 @@ export default function BillingSection() {
           load()
         })
     } else {
+      // Returning from Connect onboarding (?connect=done|refresh): strip the param
+      // and load — load() re-syncs the live Connect status when it's pending.
+      if (params.get('connect')) window.history.replaceState(null, '', '/clients')
       load()
     }
   }, [load])
