@@ -6,6 +6,7 @@ import Card from '@/components/ui/Card'
 import MetricCard from '@/components/ui/MetricCard'
 import MobileHero from '@/components/dashboard/MobileHero'
 import ConnectPrompt from '@/components/ConnectPrompt'
+import IndustryMetrics from '@/components/dashboard/IndustryMetrics'
 import { SkeletonGrid, ErrorState } from '@/components/ui/PageState'
 import { usePageData, fetchJson } from '@/hooks/usePageData'
 import InfoTip from '@/components/ui/InfoTip'
@@ -123,6 +124,9 @@ export default function KPIsPage() {
                 <p className="text-sm py-6 text-center" style={{ color: 'var(--color-text-muted)' }}>No efficiency inputs yet — your net margin populates as transactions sync, and tagging ad spend unlocks CAC, LTV/CAC and Magic Number.</p>
               </Card>
             )}
+
+            {/* Industry-specific pack — renders only for a chosen business type. */}
+            <IndustryMetrics />
 
             <Card title="Advanced KPIs" subtitle="Unlocked as more data connects" tooltip="These metrics need data sources we don't capture yet. They'll populate automatically once the inputs are available — no demo values are shown.">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
