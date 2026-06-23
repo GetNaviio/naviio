@@ -32,11 +32,11 @@ const opt = (v: number | null | undefined, fn: (n: number) => number): number | 
 import type { Industry } from './industry'
 
 export const GROSS_MARGIN_TARGET: Record<Industry, number> = {
-  saas: 80, ecommerce: 45, restaurant: 68, agency: 55, trades: 38,
+  saas: 80, ecommerce: 45, restaurant: 68, agency: 55, proservices: 55, trades: 38,
   manufacturing: 30, healthcare: 55, realestate: 65, nonprofit: 60, generic: 45,
 }
 export const NET_MARGIN_TARGET: Record<Industry, number> = {
-  saas: 15, ecommerce: 10, restaurant: 10, agency: 20, trades: 12,
+  saas: 15, ecommerce: 10, restaurant: 10, agency: 20, proservices: 22, trades: 12,
   manufacturing: 10, healthcare: 18, realestate: 25, nonprofit: 3, generic: 10,
 }
 

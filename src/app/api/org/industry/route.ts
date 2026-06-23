@@ -9,7 +9,7 @@ import { parseBody } from '@/lib/validate'
 // benchmarks. Raw SQL write so it works before `prisma generate` picks up the
 // new column on the build host. Busts the org cache so metrics recompute.
 const Schema = z.object({
-  industry: z.enum(['saas', 'ecommerce', 'restaurant', 'agency', 'trades', 'manufacturing', 'healthcare', 'realestate', 'nonprofit', 'generic']),
+  industry: z.enum(['saas', 'ecommerce', 'restaurant', 'agency', 'proservices', 'trades', 'manufacturing', 'healthcare', 'realestate', 'nonprofit', 'generic']),
 })
 
 export const POST = withOrg(async (request, { orgId }) => {

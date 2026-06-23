@@ -16,6 +16,11 @@ describe('inferIndustry (P2 detection)', () => {
     expect(r.industry).toBe('trades')
   })
 
+  it('infers professional services from law / accounting / consulting signals', () => {
+    const r = inferIndustry([tx('Law firm LLP'), tx('CPA accounting firm'), tx('Clio'), tx('consulting engagement letter')])
+    expect(r.industry).toBe('proservices')
+  })
+
   it('infers nonprofit from grant / donor signals', () => {
     const r = inferIndustry([tx('Grant disbursement'), tx('Donor pledge'), tx('Blackbaud'), tx('Foundation gift')])
     expect(r.industry).toBe('nonprofit')

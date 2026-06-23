@@ -74,6 +74,13 @@ describe('selectMetrics (industry packs)', () => {
     expect(locked.map((d) => d.id)).toEqual(expect.arrayContaining(['occupancy', 'cap_rate']))
   })
 
+  it('proservices: shares the billable-services metrics; realization + rev/employee locked', () => {
+    const { visible, locked } = selectMetrics('proservices', base)
+    expect(visible.find((v) => v.def.id === 'labor_ratio_agency')?.value).toBeCloseTo(25, 5)
+    expect(visible.find((v) => v.def.id === 'rev_per_client')?.value).toBeCloseTo(2000, 5)
+    expect(locked.map((d) => d.id)).toEqual(expect.arrayContaining(['utilization', 'realization_rate', 'rev_per_employee']))
+  })
+
   it('nonprofit: personnel + overhead ratios computable; program ratio + fundraising locked', () => {
     const { visible, locked } = selectMetrics('nonprofit', base)
     expect(visible.find((v) => v.def.id === 'personnel_ratio')?.value).toBeCloseTo(25, 5)

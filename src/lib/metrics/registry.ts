@@ -103,28 +103,42 @@ export const METRIC_REGISTRY: MetricDef[] = [
 
   // ── Professional services / Agency ────────────────────────────────────────
   {
-    id: 'labor_ratio_agency', label: 'Labor Cost Ratio', industries: ['agency'],
+    id: 'labor_ratio_agency', label: 'Labor Cost Ratio', industries: ['agency', 'proservices'],
     compute: (c) => safePct(c.payroll, c.revenue),
     format: pct, benchmark: 'Target ≤ 50%',
     tooltip: 'Payroll & contractors ÷ revenue — the core lever for a services firm.',
   },
   {
-    id: 'gross_margin_agency', label: 'Service Gross Margin', industries: ['agency'],
+    id: 'gross_margin_agency', label: 'Service Gross Margin', industries: ['agency', 'proservices'],
     compute: (c) => c.grossMargin,
     format: pct, benchmark: 'Target ≥ 50%',
     tooltip: 'Revenue minus delivery cost (subcontractors / pass-through) ÷ revenue.',
   },
   {
-    id: 'rev_per_client', label: 'Revenue per Client', industries: ['agency'],
+    id: 'rev_per_client', label: 'Revenue per Client', industries: ['agency', 'proservices'],
     compute: (c) => (c.customers && c.customers > 0 ? c.revenue / c.customers : null),
     format: money, tooltip: 'Revenue ÷ active clients.',
     unlock: 'Connect Stripe (or a CRM) for client counts',
   },
   {
-    id: 'utilization', label: 'Utilization', industries: ['agency'],
+    id: 'utilization', label: 'Utilization', industries: ['agency', 'proservices'],
     compute: () => null, // needs time-tracking
     format: pct, tooltip: 'Billable hours ÷ available hours.',
     unlock: 'Connect time-tracking (Harvest / Toggl) to unlock',
+  },
+  {
+    id: 'realization_rate', label: 'Realization Rate', industries: ['proservices'],
+    compute: () => null, // needs billed vs standard-rate hours
+    format: pct, benchmark: 'Target ≥ 90%',
+    tooltip: 'Revenue collected ÷ standard billing rate — how much of billable value you actually realize.',
+    unlock: 'Connect practice/time billing (Clio / time-tracking) to unlock',
+  },
+  {
+    id: 'rev_per_employee', label: 'Revenue per Employee', industries: ['proservices'],
+    compute: () => null, // needs headcount
+    format: money, benchmark: 'Higher is better',
+    tooltip: 'Revenue ÷ full-time staff — the productivity measure for a people business.',
+    unlock: 'Add headcount (or connect HR/payroll) to unlock',
   },
 
   // ── Trades / Construction ─────────────────────────────────────────────────

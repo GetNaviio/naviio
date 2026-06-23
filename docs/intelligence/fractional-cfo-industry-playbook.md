@@ -19,7 +19,8 @@ formula, the data input it needs, and the benchmark band to score it against.
 | Technology / SaaS | `saas` | ✅ (MRR/NRR/churn/LTV-CAC, Revenue tab) | fundraising/cap-table tooling |
 | Construction | `trades` | ✅ job margin, materials %, labor & subs % | % -of-completion / WIP / retention |
 | Real estate / property | `realestate` | ✅ NOI margin, opex ratio | occupancy, cap rate, cost/door |
-| Professional services / agency | `agency` | ✅ labor ratio, service GM, rev/client | utilization, realization, partner comp |
+| Marketing / creative agency | `agency` | ✅ labor ratio, service GM, rev/client | utilization |
+| Professional services (law/acct/consulting) | `proservices` | ✅ labor ratio, service GM, rev/client | utilization, realization, rev/employee, partner comp |
 | Healthcare | `healthcare` | ✅ provider cost, overhead | collections rate, days in A/R, payer mix |
 | Manufacturing / distribution | `manufacturing` | ✅ production GM, materials %, overhead | inventory turns, capacity, std-cost variance |
 | Retail / e-commerce | `ecommerce` | ✅ contribution margin, refund rate, mktg % | AOV, sell-through, open-to-buy, omni-channel |

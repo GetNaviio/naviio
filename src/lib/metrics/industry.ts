@@ -14,6 +14,7 @@ export type Industry =
   | 'ecommerce'
   | 'restaurant'
   | 'agency'
+  | 'proservices'
   | 'trades'
   | 'manufacturing'
   | 'healthcare'
@@ -25,7 +26,8 @@ export const INDUSTRIES: { id: Industry; label: string; blurb: string }[] = [
   { id: 'saas', label: 'SaaS / Subscription', blurb: 'Recurring software or membership revenue' },
   { id: 'ecommerce', label: 'E-commerce / Retail', blurb: 'Selling physical or digital goods' },
   { id: 'restaurant', label: 'Restaurant / Hospitality', blurb: 'Food, beverage, and hospitality' },
-  { id: 'agency', label: 'Agency / Professional Services', blurb: 'Billable services and consulting' },
+  { id: 'agency', label: 'Marketing / Creative Agency', blurb: 'Marketing, creative, and freelance services' },
+  { id: 'proservices', label: 'Professional Services', blurb: 'Law, accounting, consulting, and advisory firms' },
   { id: 'trades', label: 'Trades / Construction', blurb: 'Contracting, field, and project work' },
   { id: 'manufacturing', label: 'Manufacturing / Distribution', blurb: 'Producing or distributing goods' },
   { id: 'healthcare', label: 'Healthcare Practice', blurb: 'Clinics, providers, and practices' },
@@ -45,7 +47,8 @@ const SIGNALS: Record<Exclude<Industry, 'generic'>, RegExp> = {
   saas: /\b(stripe|recurly|chargebee|aws|amazon web services|gcp|google cloud|\bazure\b|vercel|heroku|datadog|github|atlassian|saas|subscription)\b/i,
   ecommerce: /\b(shopify|woocommerce|bigcommerce|amazon(?!\s*web)|ebay|etsy|shipstation|shippo|easypost|usps|ups|fedex|dhl|fulfillment|3pl|warehouse|inventory)\b/i,
   restaurant: /\b(sysco|us ?foods|restaurant depot|gordon food|toast|doordash|ubereats|uber eats|grubhub|opentable|resy|food ?service|produce|beverage|brewery|catering)\b/i,
-  agency: /\b(upwork|fiverr|freelanc|1099|contractor labor|retainer|consult|creative|adobe creative|figma|billable)\b/i,
+  agency: /\b(upwork|fiverr|freelanc|creative|adobe creative|figma|canva|design studio|marketing agency|\bad agency\b|media buy)\b/i,
+  proservices: /\b(law firm|attorney|\blegal\b|paralegal|\bllp\b|accounting firm|\bcpa\b|bookkeep|consult|advisory|clio|lawpay|mycase|engagement letter|billable hour|retainer)\b/i,
   trades: /\b(home depot|lowe'?s|ferguson|lumber|building material|concrete|hvac|plumbing|electrical|subcontractor|sub-?contractor|job site|equipment rental)\b/i,
   manufacturing: /\b(manufactur|fabrication|machining|machine shop|cnc|tooling|assembly|industrial supply|mcmaster|grainger|raw material|bill of materials|\bbom\b|injection mold|foundry|oem|pallet|distribution center)\b/i,
   healthcare: /\b(medicaid|medicare|blue cross|aetna|cigna|unitedhealth|copay|co-pay|patient|clinic|dental|provider|practice management|athenahealth|epic systems)\b/i,
