@@ -45,9 +45,10 @@ export async function getFirmRole(userId: string): Promise<FirmRole | null> {
     SELECT EXISTS (SELECT 1 FROM "Firm" WHERE "ownerUserId" = ${userId}) AS ok
   `)
   if (owns[0]?.ok) return 'PARTNER'
+  // FirmMember may not be migrated yet — degrade to "not a member" rather than 500.
   const rows = await prisma.$queryRaw<Array<{ role: string }>>(Prisma.sql`
     SELECT "role"::text AS role FROM "FirmMember" WHERE "userId" = ${userId} LIMIT 1
-  `)
+  `).catch(() => [] as Array<{ role: string }>)
   return (rows[0]?.role as FirmRole) ?? null
 }
 

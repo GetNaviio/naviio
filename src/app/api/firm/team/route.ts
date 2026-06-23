@@ -37,7 +37,14 @@ export const GET = withAuth(async (_request, { user }) => {
     FROM "FirmMember" m JOIN "User" u ON u."id" = m."userId"
     WHERE m."firmId" = ${firmId}
     ORDER BY "isOwner" DESC, "email" ASC
-  `)
+  `).catch(() =>
+    // FirmMember not migrated yet — show just the owner rather than 500.
+    prisma.$queryRaw<TeamRow[]>(Prisma.sql`
+      SELECT u."id" AS "userId", u."email", u."name", 'PARTNER' AS role, true AS "isOwner"
+      FROM "Firm" f JOIN "User" u ON u."id" = f."ownerUserId"
+      WHERE f."id" = ${firmId}
+    `).catch(() => [] as TeamRow[]),
+  )
   return Response.json({ members: rows, role })
 })
 
