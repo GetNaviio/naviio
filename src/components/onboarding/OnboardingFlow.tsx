@@ -15,18 +15,20 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Building2, Loader2, CheckCircle, Sparkles, ArrowRight } from 'lucide-react'
+import { Building2, Loader2, CheckCircle, Sparkles, ArrowRight, Briefcase } from 'lucide-react'
 import PlaidLinkButton from '@/components/integrations/PlaidLink'
 import { formatCurrency } from '@/lib/utils'
+import { INDUSTRIES, type Industry } from '@/lib/metrics/industry'
 
 interface MetricsPayload {
   hasData: boolean
   sources?: { plaid?: boolean; stripe?: boolean; quickbooks?: boolean; xero?: boolean }
   incomeStatement?: { totalIncome: number; totalExpenses: number }
   cash?: { balance: number | null }
+  industry?: Industry | null
 }
 
-type Step = 'connect' | 'syncing' | 'ready'
+type Step = 'business' | 'connect' | 'syncing' | 'ready'
 
 const POLL_MS = 4000
 const SLOW_AFTER_POLLS = 12 // ~48s → show the "taking a while" fallback
@@ -40,10 +42,30 @@ export default function OnboardingFlow({
   /** Called with the fresh metrics payload when the user opens the dashboard */
   onReady: (metrics: MetricsPayload) => void
 }) {
-  const [step, setStep] = useState<Step>(connected ? 'syncing' : 'connect')
+  const [step, setStep] = useState<Step>(connected ? 'syncing' : 'business')
   const [metrics, setMetrics] = useState<MetricsPayload | null>(null)
   const [polls, setPolls] = useState(0)
+  const [savingInd, setSavingInd] = useState<Industry | null>(null)
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Skip the business-type step if the org already has an industry set.
+  useEffect(() => {
+    if (connected) return
+    let alive = true
+    fetch('/api/metrics').then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (alive && d?.industry) setStep((s) => (s === 'business' ? 'connect' : s))
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [connected])
+
+  async function pickIndustry(id: Industry) {
+    setSavingInd(id)
+    try {
+      await fetch('/api/org/industry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ industry: id }) })
+    } catch { /* non-blocking — they can set it later in Settings */ }
+    setSavingInd(null)
+    setStep('connect')
+  }
 
   // Poll for data while syncing; stop the moment it lands.
   useEffect(() => {
@@ -68,8 +90,8 @@ export default function OnboardingFlow({
 
   const slow = polls >= SLOW_AFTER_POLLS
 
-  const stepIndex = step === 'connect' ? 0 : step === 'syncing' ? 1 : 2
-  const STEPS = ['Connect', 'Sync', 'First insights']
+  const stepIndex = step === 'business' ? 0 : step === 'connect' ? 1 : step === 'syncing' ? 2 : 3
+  const STEPS = ['Business', 'Connect', 'Sync', 'First insights']
 
   return (
     <div className="flex justify-center pt-6 sm:pt-12">
@@ -78,7 +100,7 @@ export default function OnboardingFlow({
         style={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)' }}
       >
         {/* Step indicator */}
-        <div className="flex items-center justify-center gap-2 mb-7" aria-label={`Step ${stepIndex + 1} of 3`}>
+        <div className="flex items-center justify-center gap-2 mb-7" aria-label={`Step ${stepIndex + 1} of 4`}>
           {STEPS.map((label, i) => (
             <div key={label} className="flex items-center gap-2">
               <span
@@ -101,6 +123,39 @@ export default function OnboardingFlow({
             </div>
           ))}
         </div>
+
+        {step === 'business' && (
+          <>
+            <div className="w-12 h-12 mx-auto mb-4 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(20,184,166,0.18))' }}>
+              <Briefcase size={22} style={{ color: '#3B82F6' }} />
+            </div>
+            <h2 className="text-lg font-semibold text-white">What kind of business is this?</h2>
+            <p className="text-sm mt-2 mb-5 leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+              Navi tailors your metrics and health score to your industry — a restaurant sees prime cost, a SaaS company sees MRR &amp; churn. You can change this anytime in Settings.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+              {INDUSTRIES.filter((i) => i.id !== 'generic').map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => pickIndustry(opt.id)}
+                  disabled={savingInd != null}
+                  className="px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                  style={{
+                    border: '1px solid var(--color-surface-border)',
+                    backgroundColor: savingInd === opt.id ? 'rgba(59,130,246,0.12)' : 'transparent',
+                    color: 'var(--color-text-primary)',
+                    opacity: savingInd != null && savingInd !== opt.id ? 0.5 : 1,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setStep('connect')} className="text-xs mt-4 underline" style={{ color: 'var(--color-text-muted)' }}>
+              Skip for now
+            </button>
+          </>
+        )}
 
         {step === 'connect' && (
           <>

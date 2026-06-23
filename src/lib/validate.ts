@@ -22,6 +22,9 @@ export const RegisterSchema = z.object({
   email: EmailSchema,
   password: z.string().min(8, 'Password must be at least 8 characters').max(128),
   name: z.string().trim().min(1).max(100).optional(),
+  // The business/company name the user types at signup — used to name their
+  // Organization (previously collected by the form but silently dropped).
+  company: z.string().trim().min(1).max(120).optional(),
 })
 
 export const LoginSchema = z.object({

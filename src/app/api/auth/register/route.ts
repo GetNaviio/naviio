@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
     const parsed = await parseBody(request, RegisterSchema)
     if (!parsed.ok) return parsed.response
-    const { email, password, name } = parsed.data // email normalized by schema
+    const { email, password, name, company } = parsed.data // email normalized by schema
 
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
@@ -21,6 +21,12 @@ export async function POST(request: Request) {
     const user = await prisma.user.create({
       data: { email, passwordHash, name },
     })
+
+    // Create the user's Organization now, named after the company they typed
+    // (previously the org was created lazily on first data request and named
+    // after the person's name/email). getDefaultOrgId will find this one.
+    const orgName = company?.trim() || name?.trim() || email
+    await prisma.organization.create({ data: { name: orgName, userId: user.id } })
 
     const token = signToken({ userId: user.id, email: user.email })
     await setSessionCookie(token)
