@@ -6,7 +6,9 @@ import InfoTip from '@/components/ui/InfoTip'
 import {
   scoreProfitability, scoreRevenueGrowth, scoreGrossMargin, scoreRetention,
   scoreEfficiency, scoreLiquidity, overallScore, grade, scoreColor,
+  GROSS_MARGIN_TARGET, NET_MARGIN_TARGET,
 } from '@/lib/metrics/scoring'
+import type { Industry } from '@/lib/metrics/industry'
 
 interface Dim { key: string; score: number | null; value: string; benchmark: string; weight: number; tip: string }
 
@@ -64,15 +66,17 @@ export default function NaviScore() {
       // SaaS-only dimensions (Retention, Efficiency) apply when the business is
       // SaaS — explicitly, or implicitly when recurring-revenue snapshots exist
       // and no other industry was chosen. A restaurant never sees an empty NRR axis.
-      const industry: string | null = mx?.industry ?? null
+      const industry = (mx?.industry as Industry | null) ?? null
       const showSaas = industry === 'saas' || (industry == null && wf != null)
+      const nmTarget = NET_MARGIN_TARGET[industry ?? 'generic']
+      const gmTarget = GROSS_MARGIN_TARGET[industry ?? 'generic']
 
       const pct = (v: number | null, suffix: string) => (v == null ? '—' : `${v.toFixed(1)}${suffix}`)
       const built: Dim[] = [
-        { key: 'Profitability', score: scoreProfitability(netMargin), value: pct(netMargin, '% margin'), benchmark: 'Net margin', weight: 0.25, tip: 'Net income ÷ revenue.' },
+        { key: 'Profitability', score: scoreProfitability(netMargin, industry), value: pct(netMargin, '% margin'), benchmark: `Target ≥ ${nmTarget}% net`, weight: 0.25, tip: `Net income ÷ revenue, graded against the ~${nmTarget}% target for your industry.` },
         { key: 'Growth', score: scoreRevenueGrowth(revGrowth), value: revGrowth == null ? '—' : `${revGrowth.toFixed(1)}% MoM`, benchmark: 'Revenue growth', weight: 0.25, tip: 'Month-over-month revenue growth from your P&L.' },
         ...(grossMargin != null
-          ? [{ key: 'Gross Margin', score: scoreGrossMargin(grossMargin), value: `${grossMargin.toFixed(0)}%`, benchmark: 'Gross margin', weight: 0.2, tip: 'Gross profit ÷ revenue — your core unit economics.' }]
+          ? [{ key: 'Gross Margin', score: scoreGrossMargin(grossMargin, industry), value: `${grossMargin.toFixed(0)}%`, benchmark: `Target ≥ ${gmTarget}%`, weight: 0.2, tip: `Gross profit ÷ revenue, graded against the ~${gmTarget}% target for your industry.` }]
           : []),
         { key: 'Liquidity', score: scoreLiquidity(runway), value: runway == null ? '—' : runway === Infinity ? 'Cash positive' : `${runway}mo`, benchmark: 'Months of cash', weight: 0.15, tip: 'Months of cash at current burn.' },
         ...(showSaas

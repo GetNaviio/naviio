@@ -140,6 +140,10 @@ CFO focus: fund accounting, grant compliance, donor diversification, reserves.
 - [x] Add `nonprofit` business type (enum + inference + pack) — shipped: personnel
       ratio + overhead ratio [live]; program-expense ratio + cost-to-raise-$1
       [locked, need functional-expense tagging / donor system).
-- [ ] Per-industry score benchmark bands in `scoring.ts` (data is in this doc).
+- [x] Per-industry score benchmark bands in `scoring.ts` — shipped: gross margin &
+      net margin graded against industry targets (GROSS_MARGIN_TARGET /
+      NET_MARGIN_TARGET), so 30% GM is excellent for manufacturing, weak for SaaS.
 - [ ] First connector to unlock locked metrics — recommend **time-tracking** or
       **POS** (highest fractional-CFO demand, cleanest data).
+- [ ] Extend per-industry bands to revenue-growth and months-of-cash (runway
+      targets differ: a growth startup wants 18mo, a profitable restaurant 3–6mo).

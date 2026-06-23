@@ -23,9 +23,36 @@ export function band(v: number, points: [number, number][]): number {
 const opt = (v: number | null | undefined, fn: (n: number) => number): number | null =>
   v == null || Number.isNaN(v) ? null : fn(v)
 
-/** Profitability ← net margin %. */
-export const scoreProfitability = (netMarginPct: number | null | undefined) =>
-  opt(netMarginPct, (v) => band(v, [[-20, 10], [0, 45], [10, 65], [20, 82], [40, 96]]))
+// ── Per-industry benchmark targets ──────────────────────────────────────────
+// A "healthy" gross/net margin varies enormously by industry — 30% gross margin
+// is great for a manufacturer and alarming for SaaS. We grade each business on
+// its own curve, built parametrically around an industry target (the value that
+// scores ~82–85). Sources: standard FP&A benchmarks + the fractional-CFO playbook
+// (docs/intelligence/fractional-cfo-industry-playbook.md).
+import type { Industry } from './industry'
+
+export const GROSS_MARGIN_TARGET: Record<Industry, number> = {
+  saas: 80, ecommerce: 45, restaurant: 68, agency: 55, trades: 38,
+  manufacturing: 30, healthcare: 55, realestate: 65, nonprofit: 60, generic: 45,
+}
+export const NET_MARGIN_TARGET: Record<Industry, number> = {
+  saas: 15, ecommerce: 10, restaurant: 10, agency: 20, trades: 12,
+  manufacturing: 10, healthcare: 18, realestate: 25, nonprofit: 3, generic: 10,
+}
+
+const targetOf = (t: Record<Industry, number>, industry?: Industry | null) =>
+  t[industry ?? 'generic'] ?? t.generic
+
+/** Gross-margin band scaled to an industry target (always-positive metric). */
+const grossBand = (t: number): [number, number][] =>
+  [[t * 0.25, 20], [t * 0.55, 45], [t * 0.8, 65], [t, 85], [t * 1.25, 96]]
+/** Net-margin band scaled to a target, tolerant of break-even / small losses. */
+const netBand = (t: number): [number, number][] =>
+  [[-t, 12], [0, 42], [t * 0.5, 60], [t, 82], [t * 1.6, 96]]
+
+/** Profitability ← net margin %, graded against the org's industry target. */
+export const scoreProfitability = (netMarginPct: number | null | undefined, industry?: Industry | null) =>
+  opt(netMarginPct, (v) => band(v, netBand(targetOf(NET_MARGIN_TARGET, industry))))
 
 /** Growth ← month-over-month MRR growth % (SaaS pace). */
 export const scoreGrowth = (momGrowthPct: number | null | undefined) =>
@@ -36,10 +63,10 @@ export const scoreGrowth = (momGrowthPct: number | null | undefined) =>
 export const scoreRevenueGrowth = (momGrowthPct: number | null | undefined) =>
   opt(momGrowthPct, (v) => band(v, [[-5, 20], [0, 48], [1, 62], [3, 78], [8, 95]]))
 
-/** Unit economics (universal) ← gross margin %. Works for every industry; the
- *  basis for each industry's deeper unit economics. */
-export const scoreGrossMargin = (grossMarginPct: number | null | undefined) =>
-  opt(grossMarginPct, (v) => band(v, [[10, 25], [30, 50], [50, 70], [70, 86], [90, 97]]))
+/** Unit economics (universal) ← gross margin %, graded against the org's industry
+ *  target (30% is excellent for manufacturing, weak for SaaS). */
+export const scoreGrossMargin = (grossMarginPct: number | null | undefined, industry?: Industry | null) =>
+  opt(grossMarginPct, (v) => band(v, grossBand(targetOf(GROSS_MARGIN_TARGET, industry))))
 
 /** Retention ← NRR %. */
 export const scoreRetention = (nrrPct: number | null | undefined) =>
