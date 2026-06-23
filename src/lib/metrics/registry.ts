@@ -18,6 +18,8 @@ export interface MetricContext {
   grossProfit: number      // revenue − cogs
   grossMargin: number | null // %
   netMargin: number | null   // %
+  opex: number             // operating expenses (totalExpenses − cogs), period
+  operatingMargin: number | null // operating income ÷ revenue (%)
   payroll: number          // 'Payroll & Contractors' spend, period
   adSpend: number          // 'Advertising & Marketing' spend, period
   refundRate: number | null  // 0–1 (Stripe)
@@ -149,6 +151,84 @@ export const METRIC_REGISTRY: MetricDef[] = [
     compute: () => null, // needs job-costing / signed contracts
     format: money, tooltip: 'Signed work not yet billed.',
     unlock: 'Connect job-costing (Jobber / ServiceTitan) to unlock',
+  },
+
+  // ── Manufacturing / Distribution ──────────────────────────────────────────
+  {
+    id: 'production_margin', label: 'Production Gross Margin', industries: ['manufacturing'],
+    compute: (c) => c.grossMargin,
+    format: pct, benchmark: 'Target ≥ 25%',
+    tooltip: 'Revenue minus cost of goods produced ÷ revenue.',
+  },
+  {
+    id: 'materials_pct', label: 'Materials % of Revenue', industries: ['manufacturing'],
+    compute: (c) => safePct(c.cogs, c.revenue),
+    format: pct, benchmark: 'Watch the trend',
+    tooltip: 'Direct materials / cost of goods ÷ revenue.',
+  },
+  {
+    id: 'overhead_ratio_mfg', label: 'Overhead Ratio', industries: ['manufacturing'],
+    compute: (c) => safePct(c.opex, c.revenue),
+    format: pct, benchmark: 'Lower is better',
+    tooltip: 'Operating overhead (non-production) ÷ revenue.',
+  },
+  {
+    id: 'inventory_turns', label: 'Inventory Turnover', industries: ['manufacturing'],
+    compute: () => null, // needs inventory balances
+    format: ratio, tooltip: 'COGS ÷ average inventory.',
+    unlock: 'Connect inventory (an ERP / accounting feed) to unlock',
+  },
+
+  // ── Healthcare / Medical Practices ────────────────────────────────────────
+  {
+    id: 'provider_staff_cost', label: 'Provider & Staff Cost', industries: ['healthcare'],
+    compute: (c) => safePct(c.payroll, c.revenue),
+    format: pct, benchmark: 'Target ≤ 55%',
+    tooltip: 'Payroll (providers + staff) ÷ revenue — the largest cost lever in a practice.',
+  },
+  {
+    id: 'overhead_ratio_hc', label: 'Overhead Ratio', industries: ['healthcare'],
+    compute: (c) => safePct(c.opex, c.revenue),
+    format: pct, benchmark: 'Target ≤ 60%',
+    tooltip: 'Operating overhead (rent, supplies, admin) ÷ revenue.',
+  },
+  {
+    id: 'collections_rate', label: 'Collections Rate', industries: ['healthcare'],
+    compute: () => null, // needs gross charges vs collected
+    format: pct, tooltip: 'Collected ÷ gross charges (net collection rate).',
+    unlock: 'Connect practice management (athenahealth / DrChrono) to unlock',
+  },
+  {
+    id: 'days_in_ar', label: 'Days in A/R', industries: ['healthcare'],
+    compute: () => null, // needs AR aging
+    format: (v) => `${v.toFixed(0)} days`, tooltip: 'How long claims take to collect.',
+    unlock: 'Connect billing / AR aging to unlock',
+  },
+
+  // ── Real Estate / Property ────────────────────────────────────────────────
+  {
+    id: 'noi_margin', label: 'NOI Margin', industries: ['realestate'],
+    compute: (c) => c.operatingMargin,
+    format: pct, benchmark: 'Higher is better',
+    tooltip: 'Net operating income (rent minus operating expenses) ÷ revenue.',
+  },
+  {
+    id: 'opex_ratio_re', label: 'Operating Expense Ratio', industries: ['realestate'],
+    compute: (c) => safePct(c.opex, c.revenue),
+    format: pct, benchmark: 'Target ≤ 50%',
+    tooltip: 'Operating expenses ÷ rental revenue.',
+  },
+  {
+    id: 'occupancy', label: 'Occupancy', industries: ['realestate'],
+    compute: () => null, // needs unit/lease data
+    format: pct, tooltip: 'Occupied units ÷ total units.',
+    unlock: 'Connect property management (AppFolio / Buildium) to unlock',
+  },
+  {
+    id: 'cap_rate', label: 'Cap Rate', industries: ['realestate'],
+    compute: () => null, // needs property values
+    format: pct, tooltip: 'NOI ÷ property value.',
+    unlock: 'Add property values to unlock',
   },
 ]
 

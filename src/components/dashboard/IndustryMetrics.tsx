@@ -38,6 +38,8 @@ export default function IndustryMetrics() {
         grossProfit: is.grossProfit ?? 0,
         grossMargin: is.grossMargin ?? null,
         netMargin: is.netMargin ?? null,
+        opex: is.operatingExpenses ?? Math.max((is.totalExpenses ?? 0) - (is.cogs ?? 0), 0),
+        operatingMargin: is.totalIncome > 0 ? ((is.operatingIncome ?? is.netIncome ?? 0) / is.totalIncome) * 100 : null,
         payroll: catAmount(is.expensesByCategory, 'Payroll & Contractors'),
         adSpend: catAmount(is.expensesByCategory, 'Advertising & Marketing'),
         refundRate: stripe?.refundRate ?? null,

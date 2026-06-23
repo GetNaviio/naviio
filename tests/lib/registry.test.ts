@@ -6,6 +6,8 @@ const base: MetricContext = {
   grossProfit: 65000,
   grossMargin: 65,
   netMargin: 12,
+  opex: 40000,
+  operatingMargin: 25,
   payroll: 25000,
   adSpend: 10000,
   refundRate: 0.02,
@@ -48,5 +50,27 @@ describe('selectMetrics (industry packs)', () => {
     const { visible, locked } = selectMetrics('agency', { ...base, customers: null })
     expect(visible.find((v) => v.def.id === 'rev_per_client')).toBeUndefined()
     expect(locked.map((d) => d.id)).toContain('rev_per_client')
+  })
+
+  it('manufacturing: materials % + overhead computable; inventory turns locked', () => {
+    const { visible, locked } = selectMetrics('manufacturing', base)
+    expect(visible.find((v) => v.def.id === 'materials_pct')?.value).toBeCloseTo(35, 5)
+    expect(visible.find((v) => v.def.id === 'overhead_ratio_mfg')?.value).toBeCloseTo(40, 5) // 40000/100000
+    expect(visible.find((v) => v.def.id === 'production_margin')?.value).toBe(65)
+    expect(locked.map((d) => d.id)).toContain('inventory_turns')
+  })
+
+  it('healthcare: provider/staff cost + overhead computable; collections + AR locked', () => {
+    const { visible, locked } = selectMetrics('healthcare', base)
+    expect(visible.find((v) => v.def.id === 'provider_staff_cost')?.value).toBeCloseTo(25, 5)
+    expect(visible.find((v) => v.def.id === 'overhead_ratio_hc')?.value).toBeCloseTo(40, 5)
+    expect(locked.map((d) => d.id)).toEqual(expect.arrayContaining(['collections_rate', 'days_in_ar']))
+  })
+
+  it('realestate: NOI margin + opex ratio computable; occupancy + cap rate locked', () => {
+    const { visible, locked } = selectMetrics('realestate', base)
+    expect(visible.find((v) => v.def.id === 'noi_margin')?.value).toBe(25) // operatingMargin
+    expect(visible.find((v) => v.def.id === 'opex_ratio_re')?.value).toBeCloseTo(40, 5)
+    expect(locked.map((d) => d.id)).toEqual(expect.arrayContaining(['occupancy', 'cap_rate']))
   })
 })

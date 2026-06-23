@@ -15,7 +15,9 @@ export type Industry =
   | 'restaurant'
   | 'agency'
   | 'trades'
+  | 'manufacturing'
   | 'healthcare'
+  | 'realestate'
   | 'generic'
 
 export const INDUSTRIES: { id: Industry; label: string; blurb: string }[] = [
@@ -24,7 +26,9 @@ export const INDUSTRIES: { id: Industry; label: string; blurb: string }[] = [
   { id: 'restaurant', label: 'Restaurant / Hospitality', blurb: 'Food, beverage, and hospitality' },
   { id: 'agency', label: 'Agency / Professional Services', blurb: 'Billable services and consulting' },
   { id: 'trades', label: 'Trades / Construction', blurb: 'Contracting, field, and project work' },
+  { id: 'manufacturing', label: 'Manufacturing / Distribution', blurb: 'Producing or distributing goods' },
   { id: 'healthcare', label: 'Healthcare Practice', blurb: 'Clinics, providers, and practices' },
+  { id: 'realestate', label: 'Real Estate / Property', blurb: 'Property management, rentals, and investing' },
   { id: 'generic', label: 'Other / General', blurb: 'A general business P&L' },
 ]
 
@@ -40,8 +44,10 @@ const SIGNALS: Record<Exclude<Industry, 'generic'>, RegExp> = {
   ecommerce: /\b(shopify|woocommerce|bigcommerce|amazon(?!\s*web)|ebay|etsy|shipstation|shippo|easypost|usps|ups|fedex|dhl|fulfillment|3pl|warehouse|inventory)\b/i,
   restaurant: /\b(sysco|us ?foods|restaurant depot|gordon food|toast|doordash|ubereats|uber eats|grubhub|opentable|resy|food ?service|produce|beverage|brewery|catering)\b/i,
   agency: /\b(upwork|fiverr|freelanc|1099|contractor labor|retainer|consult|creative|adobe creative|figma|billable)\b/i,
-  trades: /\b(home depot|lowe'?s|ferguson|grainger|lumber|building material|hardware|concrete|hvac|plumbing|electrical|subcontractor|sub-?contractor|job site|equipment rental)\b/i,
+  trades: /\b(home depot|lowe'?s|ferguson|lumber|building material|concrete|hvac|plumbing|electrical|subcontractor|sub-?contractor|job site|equipment rental)\b/i,
+  manufacturing: /\b(manufactur|fabrication|machining|machine shop|cnc|tooling|assembly|industrial supply|mcmaster|grainger|raw material|bill of materials|\bbom\b|injection mold|foundry|oem|pallet|distribution center)\b/i,
   healthcare: /\b(medicaid|medicare|blue cross|aetna|cigna|unitedhealth|copay|co-pay|patient|clinic|dental|provider|practice management|athenahealth|epic systems)\b/i,
+  realestate: /\b(property management|rent roll|tenant|landlord|\bhoa\b|appfolio|buildium|yardi|realtor|brokerage|escrow|title company|leasing office|property tax|cap rate)\b/i,
 }
 
 export interface IndustryInference {
